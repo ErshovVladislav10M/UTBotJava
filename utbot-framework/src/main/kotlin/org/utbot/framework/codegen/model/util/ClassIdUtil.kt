@@ -21,5 +21,5 @@ infix fun ClassId.isAccessibleFrom(packageName: String): Boolean {
 
     val isAccessibleFromPackageByModifiers = isPublic || (this.packageName == packageName && (isPackagePrivate || isProtected))
 
-    return isOuterClassAccessible && isAccessibleFromPackageByModifiers && !isLocal && !isSynthetic
+    return isOuterClassAccessible && isAccessibleFromPackageByModifiers && !isLocal && !isAnonymous && !isSynthetic
 }
