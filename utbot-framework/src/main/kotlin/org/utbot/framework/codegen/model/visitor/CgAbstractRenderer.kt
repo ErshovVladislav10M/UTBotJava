@@ -66,7 +66,6 @@ import org.utbot.framework.codegen.model.tree.CgStaticFieldAccess
 import org.utbot.framework.codegen.model.tree.CgStaticRunnable
 import org.utbot.framework.codegen.model.tree.CgStaticsRegion
 import org.utbot.framework.codegen.model.tree.CgTestClass
-import org.utbot.framework.codegen.model.tree.CgTestClassBody
 import org.utbot.framework.codegen.model.tree.CgTestClassFile
 import org.utbot.framework.codegen.model.tree.CgTestMethod
 import org.utbot.framework.codegen.model.tree.CgTestMethodCluster
@@ -134,15 +133,6 @@ internal abstract class CgAbstractRenderer(val context: CgContext, val printer: 
         renderClassPackage(element.testClass)
         renderClassFileImports(element)
         element.testClass.accept(this)
-    }
-
-    override fun visit(element: CgTestClassBody) {
-        // render regions for test methods and utils
-        for ((i, region) in (element.regions + element.nestedClassRegions + element.utilsRegion).withIndex()) {
-            if (i != 0) println()
-
-            region.accept(this)
-        }
     }
 
     /**
