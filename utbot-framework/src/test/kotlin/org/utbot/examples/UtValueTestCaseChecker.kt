@@ -2397,7 +2397,6 @@ abstract class UtValueTestCaseChecker(
             }
             if (testName) {
                 valueExecutions.checkNameMatchers(summaryNameChecks)
-                valueExecutions.checkNamesForBasicErrors()
             }
             if (testDisplayName) {
                 valueExecutions.checkDisplayNameMatchers(summaryDisplayNameChecks)
@@ -2495,15 +2494,6 @@ abstract class UtValueTestCaseChecker(
 //        }
 //        assertTrue(emptyLines.isEmpty()) { "Empty lines in the comments: ${emptyLines.map { it.summary }.prettify()}" }
 //    }
-
-    fun List<UtValueExecution<*>>.checkNamesForBasicErrors() {
-        val wrongASTNodeConversion = this.filter {
-            it.testMethodName?.contains("null") ?: false
-        }
-        assertTrue(wrongASTNodeConversion.isEmpty()) {
-            "Null in AST node conversion in the names: ${wrongASTNodeConversion.map { it.testMethodName }.prettify()}"
-        }
-    }
 
     fun walk(
         method: UtMethod<*>,
