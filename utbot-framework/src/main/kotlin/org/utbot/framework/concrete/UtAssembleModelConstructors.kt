@@ -1,12 +1,12 @@
 package org.utbot.framework.concrete
 
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtStatementModel
-import org.utbot.framework.plugin.api.util.jClass
+import org.utbot.framework.plugin.api.reflection
 import org.utbot.framework.plugin.api.util.primitiveWrappers
 import org.utbot.framework.plugin.api.util.voidWrapperClassId
 import org.utbot.framework.util.nextModelName
+import org.utbot.jcdb.api.ClassId
 
 private val predefinedConstructors = mutableMapOf<Class<*>, () -> UtAssembleModelConstructorBase>(
     /**
@@ -66,13 +66,17 @@ private val predefinedConstructors = mutableMapOf<Class<*>, () -> UtAssembleMode
     /**
      * Primitive wrappers
      */
-    this += primitiveWrappers
-        .filter { it != voidWrapperClassId }
-        .associate { it.jClass to { PrimitiveWrapperConstructor() } }
-}
+        this += with(reflection) {
+            primitiveWrappers
+                .filter { it != voidWrapperClassId }
+                .associate { it.javaClass to { PrimitiveWrapperConstructor() } }
+        }
+    }
 
-internal fun findUtAssembleModelConstructor(classId: ClassId): UtAssembleModelConstructorBase? =
-    predefinedConstructors[classId.jClass]?.invoke()
+
+internal fun findUtAssembleModelConstructor(classId: ClassId): UtAssembleModelConstructorBase? = with(reflection){
+    predefinedConstructors[classId.javaClass]?.invoke()
+}
 
 internal abstract class UtAssembleModelConstructorBase {
     fun constructAssembleModel(

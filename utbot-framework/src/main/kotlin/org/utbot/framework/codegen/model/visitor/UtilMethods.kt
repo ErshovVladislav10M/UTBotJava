@@ -19,17 +19,17 @@ import org.utbot.framework.codegen.model.constructor.builtin.streamsDeepEqualsMe
 import org.utbot.framework.codegen.model.constructor.context.CgContext
 import org.utbot.framework.codegen.model.constructor.context.CgContextOwner
 import org.utbot.framework.codegen.model.constructor.util.importIfNeeded
-import org.utbot.framework.plugin.api.ClassId
+import org.utbot.framework.plugin.api.BuiltinClassId
 import org.utbot.framework.plugin.api.CodegenLanguage
-import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.util.id
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.MethodId
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
-import java.util.Arrays
-import java.util.Objects
+import java.util.*
 
-internal fun ClassId.utilMethodById(id: MethodId, context: CgContext): String =
+internal fun BuiltinClassId.utilMethodById(id: MethodId, context: CgContext): String =
     with(context) {
         when (id) {
             getUnsafeInstanceMethodId -> getUnsafeInstance(codegenLanguage)
@@ -822,11 +822,11 @@ internal fun CgContextOwner.importUtilMethodDependencies(id: MethodId) {
         importIfNeeded(classId)
     }
     for (methodId in outerMostTestClass.staticImportsByUtilMethod(id)) {
-        collectedImports += StaticImport(methodId.classId.canonicalName, methodId.name)
+        collectedImports += StaticImport(methodId.classId.name, methodId.name)
     }
 }
 
-private fun ClassId.regularImportsByUtilMethod(id: MethodId, codegenLanguage: CodegenLanguage): List<ClassId> {
+private fun BuiltinClassId.regularImportsByUtilMethod(id: MethodId, codegenLanguage: CodegenLanguage): List<ClassId> {
     val fieldClassId = Field::class.id
     return when (id) {
         getUnsafeInstanceMethodId -> listOf(fieldClassId)

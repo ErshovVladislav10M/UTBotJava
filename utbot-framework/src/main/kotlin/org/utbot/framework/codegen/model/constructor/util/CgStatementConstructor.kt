@@ -1,5 +1,7 @@
 package org.utbot.framework.codegen.model.constructor.util
 
+import fj.data.Either
+import kotlinx.coroutines.runBlocking
 import org.utbot.framework.codegen.model.constructor.builtin.forName
 import org.utbot.framework.codegen.model.constructor.builtin.mockMethodId
 import org.utbot.framework.codegen.model.constructor.context.CgContext
@@ -8,6 +10,8 @@ import org.utbot.framework.codegen.model.constructor.tree.CgCallableAccessManage
 import org.utbot.framework.codegen.model.tree.CgAllocateArray
 import org.utbot.framework.codegen.model.tree.CgAnnotation
 import org.utbot.framework.codegen.model.tree.CgAnonymousFunction
+import org.utbot.framework.codegen.model.tree.CgArrayInitializer
+import org.utbot.framework.codegen.model.tree.CgClassType
 import org.utbot.framework.codegen.model.tree.CgComment
 import org.utbot.framework.codegen.model.tree.CgDeclaration
 import org.utbot.framework.codegen.model.tree.CgEmptyLine
@@ -20,6 +24,7 @@ import org.utbot.framework.codegen.model.tree.CgForLoopBuilder
 import org.utbot.framework.codegen.model.tree.CgGetClass
 import org.utbot.framework.codegen.model.tree.CgIfStatement
 import org.utbot.framework.codegen.model.tree.CgInnerBlock
+import org.utbot.framework.codegen.model.tree.CgIsInstance
 import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgLogicalAnd
 import org.utbot.framework.codegen.model.tree.CgLogicalOr
@@ -41,36 +46,36 @@ import org.utbot.framework.codegen.model.tree.buildDoWhileLoop
 import org.utbot.framework.codegen.model.tree.buildForLoop
 import org.utbot.framework.codegen.model.tree.buildTryCatch
 import org.utbot.framework.codegen.model.tree.buildWhileLoop
+import org.utbot.framework.codegen.model.tree.type
 import org.utbot.framework.codegen.model.util.buildExceptionHandler
 import org.utbot.framework.codegen.model.util.isAccessibleFrom
 import org.utbot.framework.codegen.model.util.nullLiteral
 import org.utbot.framework.codegen.model.util.resolve
-import org.utbot.framework.plugin.api.BuiltinClassId
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.UtModel
-import org.utbot.framework.plugin.api.util.executable
+import org.utbot.framework.plugin.api.blockingIsNotSubtypeOf
+import org.utbot.framework.plugin.api.blockingIsSubtypeOf
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.util.classClassId
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.isArray
-import org.utbot.framework.plugin.api.util.isNotSubtypeOf
-import org.utbot.framework.plugin.api.util.isSubtypeOf
 import org.utbot.framework.plugin.api.util.objectArrayClassId
 import org.utbot.framework.plugin.api.util.objectClassId
-import fj.data.Either
-import org.utbot.framework.codegen.model.tree.CgArrayInitializer
-import org.utbot.framework.codegen.model.tree.CgIsInstance
-import org.utbot.framework.plugin.api.util.classClassId
+import org.utbot.framework.plugin.api.util.utContext
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.ext.findClass
+import org.utbot.jcdb.api.ifArrayGetElementClass
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 import kotlin.reflect.KFunction
 import kotlin.reflect.jvm.kotlinFunction
 
 interface CgStatementConstructor {
-    fun newVar(baseType: ClassId, baseName: String? = null, init: () -> CgExpression): CgVariable =
+    fun newVar(baseType: CgClassType, baseName: String? = null, init: () -> CgExpression): CgVariable =
         newVar(baseType, model = null, baseName, isMutable = false, init)
 
     fun newVar(
-        baseType: ClassId,
+        baseType: CgClassType,
         baseName: String? = null,
         isMutable: Boolean = false,
         init: () -> CgExpression
@@ -78,7 +83,7 @@ interface CgStatementConstructor {
         newVar(baseType, model = null, baseName, isMutable = isMutable, init)
 
     fun newVar(
-        baseType: ClassId,
+        baseType: CgClassType,
         model: UtModel? = null,
         baseName: String? = null,
         isMutable: Boolean = false,
@@ -86,7 +91,7 @@ interface CgStatementConstructor {
     ): CgVariable = newVar(baseType, model, baseName, isMock = false, isMutable = isMutable, init)
 
     fun newVar(
-        baseType: ClassId,
+        baseType: CgClassType,
         model: UtModel? = null,
         baseName: String? = null,
         isMock: Boolean = false,
@@ -95,7 +100,7 @@ interface CgStatementConstructor {
     ): CgVariable
 
     fun createDeclarationForNewVarAndUpdateVariableScopeOrGetExistingVariable(
-        baseType: ClassId,
+        baseType: CgClassType,
         model: UtModel? = null,
         baseName: String? = null,
         isMock: Boolean = false,
@@ -149,13 +154,13 @@ interface CgStatementConstructor {
 
     // utils
 
-    fun declareParameter(type: ClassId, name: String): CgVariable = declareVariable(type, name)
+    fun declareParameter(type: CgClassType, name: String): CgVariable = declareVariable(type, name)
 
-    fun declareVariable(type: ClassId, name: String): CgVariable
+    fun declareVariable(type: CgClassType, name: String): CgVariable
 
-    fun guardExpression(baseType: ClassId, expression: CgExpression): ExpressionWithType
+    fun guardExpression(baseType: CgClassType, expression: CgExpression): ExpressionWithType
 
-    fun wrapTypeIfRequired(baseType: ClassId): ClassId
+    fun wrapTypeIfRequired(baseType: CgClassType): CgClassType
 }
 
 internal class CgStatementConstructorImpl(context: CgContext) :
@@ -166,7 +171,7 @@ internal class CgStatementConstructorImpl(context: CgContext) :
     private val nameGenerator = CgComponents.getNameGeneratorBy(context)
 
     override fun createDeclarationForNewVarAndUpdateVariableScopeOrGetExistingVariable(
-        baseType: ClassId,
+        baseType: CgClassType,
         model: UtModel?,
         baseName: String?,
         isMock: Boolean,
@@ -191,7 +196,7 @@ internal class CgStatementConstructorImpl(context: CgContext) :
 
         val name = when {
             classRef != null && baseName == null -> {
-                val base = classRef.prettifiedName.decapitalize()
+                val base = classRef.simpleName.decapitalize()
                 nameGenerator.variableName(base + "Clazz")
             }
             // we use baseType here intentionally
@@ -214,7 +219,7 @@ internal class CgStatementConstructorImpl(context: CgContext) :
     }
 
     override fun newVar(
-        baseType: ClassId,
+        baseType: CgClassType,
         model: UtModel?,
         baseName: String?,
         isMock: Boolean,
@@ -294,7 +299,7 @@ internal class CgStatementConstructorImpl(context: CgContext) :
 
     override fun CgTryCatch.catch(exception: ClassId, init: (CgVariable) -> Unit): CgTryCatch {
         val newHandler = buildExceptionHandler {
-            val e = declareVariable(exception, nameGenerator.variableName(exception.simpleName.decapitalize()))
+            val e = declareVariable(exception.type(false), nameGenerator.variableName(exception.simpleName.decapitalize()))
             this.exception = e
             this.statements = block { init(e) }
         }
@@ -307,7 +312,7 @@ internal class CgStatementConstructorImpl(context: CgContext) :
     }
 
     override fun CgExpression.isInstance(value: CgExpression): CgIsInstance {
-        require(this.type == classClassId) {
+        require(this.type.classId == classClassId) {
             "isInstance method can be called on object with type $classClassId only, but actual type is ${this.type}"
         }
 
@@ -341,7 +346,7 @@ internal class CgStatementConstructorImpl(context: CgContext) :
                 declareParameter(parameter.type, parameter.name)
             }
             val paramDeclarations = parameters.map { CgParameterDeclaration(it) }
-            CgAnonymousFunction(type, paramDeclarations, block(body))
+            CgAnonymousFunction(CgClassType(type), paramDeclarations, block(body))
         }
     }
 
@@ -395,24 +400,25 @@ internal class CgStatementConstructorImpl(context: CgContext) :
         emptyLine()
     }
 
-    override fun declareVariable(type: ClassId, name: String): CgVariable =
+    override fun declareVariable(type: CgClassType, name: String): CgVariable =
         CgVariable(name, type).also {
             updateVariableScope(it)
         }
 
-    override fun wrapTypeIfRequired(baseType: ClassId): ClassId =
-        if (baseType.isAccessibleFrom(testClassPackageName)) baseType else objectClassId
+    override fun wrapTypeIfRequired(baseType: CgClassType): CgClassType =
+        if (baseType.classId.isAccessibleFrom(testClassPackageName)) baseType else CgClassType(objectClassId)
 
     // utils
 
-    private fun classRefOrNull(type: ClassId, expr: CgExpression): ClassId? {
-        if (type == Class::class.id && expr is CgGetClass) return expr.classId
+    private fun classRefOrNull(type: CgClassType, expr: CgExpression): ClassId? {
+        val classId = type.classId
+        if (classId == Class::class.id && expr is CgGetClass) return expr.classId
 
-        if (type == Class::class.id && expr is CgExecutableCall && expr.executableId == forName) {
+        if (classId == Class::class.id && expr is CgExecutableCall && expr.executableId == forName) {
             val name = (expr.arguments.getOrNull(0) as? CgLiteral)?.value as? String
 
             if (name != null) {
-                return BuiltinClassId.getBuiltinClassByNameOrNull(name) ?: ClassId(name)
+                return runBlocking { utContext.classpath.findClass(name) }
             }
         }
 
@@ -423,13 +429,13 @@ internal class CgStatementConstructorImpl(context: CgContext) :
         val (enumClass, constant) = access
 
         return if (enumClass.isAccessibleFrom(testClassPackageName)) {
-            ExpressionWithType(enumClass, access)
+            ExpressionWithType(enumClass.type(), access)
         } else {
-            val enumClassVariable = newVar(classCgClassId) {
+            val enumClassVariable = newVar(classClassId.type(false)) {
                 Class::class.id[forName](enumClass.name)
             }
 
-            ExpressionWithType(objectClassId, testClassThisInstance[getEnumConstantByName](enumClassVariable, constant))
+            ExpressionWithType(objectClassId.type(true), testClassThisInstance[getEnumConstantByName](enumClassVariable, constant))
         }
     }
 
@@ -441,55 +447,55 @@ internal class CgStatementConstructorImpl(context: CgContext) :
         return guardArrayCreation(initializer.type, initializer.size, initializer)
     }
 
-    private fun guardArrayCreation(arrayType: ClassId, arraySize: Int, initialization: CgExpression): ExpressionWithType {
+    private fun guardArrayCreation(arrayType: CgClassType, arraySize: Int, initialization: CgExpression): ExpressionWithType {
         // TODO: check if this is the right way to check array type accessibility
-        return if (arrayType.isAccessibleFrom(testClassPackageName)) {
+        return if (arrayType.classId.isAccessibleFrom(testClassPackageName)) {
             ExpressionWithType(arrayType, initialization)
         } else {
             ExpressionWithType(
-                objectArrayClassId,
-                testClassThisInstance[createArray](arrayType.elementClassId!!.name, arraySize)
+                CgClassType(objectArrayClassId),
+                testClassThisInstance[createArray](arrayType.classId.ifArrayGetElementClass()!!.name, arraySize)
             )
         }
     }
 
     private val ExecutableId.kotlinFunction: KFunction<*>?
-        get() {
-            return when (val executable = this.executable) {
+        get() = with(reflection) {
+            return when (val executable = executable) {
                 is Method -> executable.kotlinFunction
                 is Constructor<*> -> executable.kotlinFunction
                 else -> error("Unknown Executable type: ${this::class}")
             }
         }
 
-    private fun guardExecutableCall(baseType: ClassId, call: CgExecutableCall): ExpressionWithType {
+    private fun guardExecutableCall(baseType: CgClassType, call: CgExecutableCall): ExpressionWithType {
         // TODO: SAT-1210 support generics so that we wouldn't need to obtain kotlinFunction
         // TODO: in order to check whether we are working with a TypeVariable or not
 //        val returnType = runCatching { call.executableId.kotlinFunction }.getOrNull()?.returnType?.javaType
 
-        if (call.executableId != mockMethodId) return guardExpression(baseType, call)
+        if (call.executableId.methodId != mockMethodId) return guardExpression(baseType, call)
 
         // call represents a call to mock() method
         val wrappedType = wrapTypeIfRequired(baseType)
         return ExpressionWithType(wrappedType, call)
     }
 
-    override fun guardExpression(baseType: ClassId, expression: CgExpression): ExpressionWithType {
-        val type: ClassId
+    override fun guardExpression(baseType: CgClassType, expression: CgExpression): ExpressionWithType {
+        val type: CgClassType
         val expr: CgExpression
 
-        val typeAccessible = baseType.isAccessibleFrom(testClassPackageName)
+        val typeAccessible = baseType.classId.isAccessibleFrom(testClassPackageName)
 
         when {
-            expression.type isSubtypeOf baseType && typeAccessible -> {
+            expression.type.classId blockingIsSubtypeOf baseType.classId && typeAccessible -> {
                 type = baseType
                 expr = expression
             }
-            expression.type isSubtypeOf baseType && !typeAccessible -> {
-                type = if (expression.type.isArray) objectArrayClassId else objectClassId
+            expression.type.classId blockingIsSubtypeOf baseType.classId && !typeAccessible -> {
+                type = if (expression.type.classId.isArray) CgClassType(objectArrayClassId, isNullable = expression.type.isNullable) else CgClassType(objectClassId)
                 expr = expression
             }
-            expression.type isNotSubtypeOf baseType && typeAccessible -> {
+            expression.type.classId blockingIsNotSubtypeOf baseType.classId && typeAccessible -> {
                 // consider util methods getField and getStaticField
                 // TODO should we consider another cases?
                 val isGetFieldUtilMethod = (expression is CgMethodCall && expression.executableId.isGetFieldUtilMethod)
@@ -498,8 +504,8 @@ internal class CgStatementConstructorImpl(context: CgContext) :
                 type = baseType
                 expr = typeCast(baseType, expression, shouldCastBeSafety)
             }
-            expression.type isNotSubtypeOf baseType && !typeAccessible -> {
-                type = if (expression.type.isArray) objectArrayClassId else objectClassId
+            expression.type.classId blockingIsNotSubtypeOf baseType.classId && !typeAccessible -> {
+                type = if (expression.type.classId.isArray) CgClassType(objectArrayClassId, isNullable = expression.type.isNullable) else CgClassType(objectClassId, isNullable = expression.type.isNullable)
                 expr = if (expression is CgMethodCall && expression.executableId.isUtil) {
                     CgErrorWrapper("${expression.executableId.name} failed", expression)
                 } else {

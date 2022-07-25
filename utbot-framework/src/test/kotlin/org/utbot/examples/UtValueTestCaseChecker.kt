@@ -35,7 +35,6 @@ import org.utbot.framework.plugin.api.DocMethodLinkStmt
 import org.utbot.framework.plugin.api.DocPreTagStatement
 import org.utbot.framework.plugin.api.DocRegularStmt
 import org.utbot.framework.plugin.api.DocStatement
-import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.FieldMockTarget
 import org.utbot.framework.plugin.api.MockId
 import org.utbot.framework.plugin.api.MockInfo
@@ -47,19 +46,20 @@ import org.utbot.framework.plugin.api.UtCompositeModel
 import org.utbot.framework.plugin.api.UtConcreteValue
 import org.utbot.framework.plugin.api.UtInstrumentation
 import org.utbot.framework.plugin.api.UtMethod
+import org.utbot.framework.plugin.api.UtMethodTestSet
 import org.utbot.framework.plugin.api.UtMockValue
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtPrimitiveModel
-import org.utbot.framework.plugin.api.UtMethodTestSet
 import org.utbot.framework.plugin.api.UtValueExecution
+import org.utbot.framework.plugin.api.reflection
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.enclosingClass
 import org.utbot.framework.plugin.api.util.executableId
 import org.utbot.framework.plugin.api.util.id
-import org.utbot.framework.plugin.api.util.kClass
 import org.utbot.framework.plugin.api.util.withUtContext
 import org.utbot.framework.util.Conflict
 import org.utbot.framework.util.toValueTestCase
+import org.utbot.jcdb.api.FieldId
 import org.utbot.summary.summarize
 import java.io.File
 import java.nio.file.Path
@@ -86,7 +86,7 @@ abstract class UtValueTestCaseChecker(
     // contains already analyzed by the engine methods
     private val analyzedMethods: MutableMap<MethodWithMockStrategy, MethodResult> = mutableMapOf()
 
-    val searchDirectory: Path = Paths.get("../utbot-sample/src/main/java")
+    open val searchDirectory: Path = Paths.get("../utbot-sample/src/main/java")
 
     init {
         UtSettings.checkSolverTimeoutMillis = 0
@@ -2321,7 +2321,9 @@ abstract class UtValueTestCaseChecker(
 
                     val methodUnderTestOwner = testSet.method.clazz
                     val classUnderTest = if (generateWithNested) {
-                        generateSequence(methodUnderTestOwner.id) { clazz -> clazz.enclosingClass }.last().kClass
+                        with(reflection) {
+                            generateSequence(methodUnderTestOwner.id) { clazz -> clazz.enclosingClass }.last().kClass
+                        }
                     } else {
                         methodUnderTestOwner
                     }

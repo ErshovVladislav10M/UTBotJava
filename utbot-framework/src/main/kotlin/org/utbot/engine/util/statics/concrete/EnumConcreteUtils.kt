@@ -1,16 +1,29 @@
 package org.utbot.engine.util.statics.concrete
 
 import org.utbot.common.withAccessibility
-import org.utbot.engine.*
+import org.utbot.engine.MemoryChunkDescriptor
+import org.utbot.engine.MethodResult
+import org.utbot.engine.ObjectValue
+import org.utbot.engine.SymbolicSuccess
+import org.utbot.engine.SymbolicValue
+import org.utbot.engine.Traverser
+import org.utbot.engine.TypeResolver
+import org.utbot.engine.addr
+import org.utbot.engine.canRetrieveBody
+import org.utbot.engine.constructEnumStaticFieldResult
+import org.utbot.engine.fieldId
+import org.utbot.engine.jimpleBody
 import org.utbot.engine.nullObjectAddr
 import org.utbot.engine.pc.addrEq
 import org.utbot.engine.pc.mkEq
 import org.utbot.engine.pc.mkNot
 import org.utbot.engine.pc.select
+import org.utbot.engine.staticInitializerOrNull
 import org.utbot.engine.symbolic.SymbolicStateUpdate
 import org.utbot.engine.symbolic.asHardConstraint
-import org.utbot.framework.plugin.api.FieldId
-import org.utbot.framework.plugin.api.util.jField
+import org.utbot.engine.toMethodResult
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.jcdb.api.FieldId
 import soot.SootClass
 import soot.SootField
 import soot.SootMethod
@@ -43,7 +56,7 @@ fun associateEnumSootFieldsWithConcreteValues(
     enumConstants: List<Enum<*>>
 ): List<Pair<SootField, List<Any>>> =
     enumFields.map { enumSootField ->
-        val enumField = enumSootField.fieldId.jField
+        val enumField = with(reflection) { enumSootField.fieldId.javaField }
 
         val fieldValues = if (enumSootField.isStatic) {
             val staticFieldValue = enumField.withAccessibility { enumField.get(null) }

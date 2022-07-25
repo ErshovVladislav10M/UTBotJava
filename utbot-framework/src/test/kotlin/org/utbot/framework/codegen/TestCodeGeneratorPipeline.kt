@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.utbot.common.FileUtil
 import org.utbot.common.bracket
 import org.utbot.common.info
-import org.utbot.common.packageName
 import org.utbot.examples.TestFrameworkConfiguration
 import org.utbot.framework.codegen.ExecutionStatus.SUCCESS
 import org.utbot.framework.codegen.model.CodeGenerator

@@ -1,5 +1,12 @@
 package org.utbot.framework.codegen.model.constructor.context
 
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.coroutines.runBlocking
 import org.utbot.framework.codegen.ForceStaticMocking
 import org.utbot.framework.codegen.HangingTestsTimeout
 import org.utbot.framework.codegen.Import
@@ -7,6 +14,9 @@ import org.utbot.framework.codegen.ParametrizedTestSource
 import org.utbot.framework.codegen.RuntimeExceptionTestsBehaviour
 import org.utbot.framework.codegen.StaticsMocking
 import org.utbot.framework.codegen.TestFramework
+import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
+import org.utbot.framework.codegen.model.constructor.TestClassContext
+import org.utbot.framework.codegen.model.constructor.TestClassModel
 import org.utbot.framework.codegen.model.constructor.builtin.arraysDeepEqualsMethodId
 import org.utbot.framework.codegen.model.constructor.builtin.createArrayMethodId
 import org.utbot.framework.codegen.model.constructor.builtin.createInstanceMethodId
@@ -22,11 +32,13 @@ import org.utbot.framework.codegen.model.constructor.builtin.mapsDeepEqualsMetho
 import org.utbot.framework.codegen.model.constructor.builtin.possibleUtilMethodIds
 import org.utbot.framework.codegen.model.constructor.builtin.setFieldMethodId
 import org.utbot.framework.codegen.model.constructor.builtin.setStaticFieldMethodId
+import org.utbot.framework.codegen.model.constructor.builtin.streamsDeepEqualsMethodId
 import org.utbot.framework.codegen.model.constructor.tree.Block
 import org.utbot.framework.codegen.model.constructor.util.EnvironmentFieldStateCache
 import org.utbot.framework.codegen.model.constructor.util.importIfNeeded
 import org.utbot.framework.codegen.model.tree.CgAnnotation
 import org.utbot.framework.codegen.model.tree.CgExecutableCall
+import org.utbot.framework.codegen.model.tree.CgParameterKind
 import org.utbot.framework.codegen.model.tree.CgStatement
 import org.utbot.framework.codegen.model.tree.CgStatementExecutableCall
 import org.utbot.framework.codegen.model.tree.CgTestMethod
@@ -34,32 +46,25 @@ import org.utbot.framework.codegen.model.tree.CgThisInstance
 import org.utbot.framework.codegen.model.tree.CgValue
 import org.utbot.framework.codegen.model.tree.CgVariable
 import org.utbot.framework.codegen.model.util.createTestClassName
-import java.util.IdentityHashMap
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.PersistentSet
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.persistentSetOf
-import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
-import org.utbot.framework.codegen.model.constructor.TestClassContext
-import org.utbot.framework.codegen.model.constructor.TestClassModel
-import org.utbot.framework.codegen.model.constructor.builtin.streamsDeepEqualsMethodId
-import org.utbot.framework.codegen.model.tree.CgParameterKind
 import org.utbot.framework.plugin.api.BuiltinClassId
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.ExecutableId
-import org.utbot.framework.plugin.api.FieldId
-import org.utbot.framework.plugin.api.MethodId
+import org.utbot.framework.plugin.api.MethodExecutableId
 import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtReferenceModel
+import org.utbot.framework.plugin.api.blockingIsSubtypeOf
+import org.utbot.framework.plugin.api.builtInClass
+import org.utbot.framework.plugin.api.packageName
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.isCheckedException
-import org.utbot.framework.plugin.api.util.isSubtypeOf
-import org.utbot.framework.plugin.api.util.jClass
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.FieldId
+import org.utbot.jcdb.api.MethodId
+import org.utbot.jcdb.api.isSubtypeOf
+import java.util.*
+import kotlin.collections.set
 
 /**
  * Interface for all code generation context aware entities
@@ -81,10 +86,10 @@ internal interface CgContextOwner {
     val classUnderTest: ClassId
 
     // test class currently being generated (if series of nested classes is generated, it is the outermost one)
-    val outerMostTestClass: ClassId
+    val outerMostTestClass: BuiltinClassId
 
     // test class currently being generated (if series of nested classes is generated, it is the innermost one)
-    var currentTestClass: ClassId
+    var currentTestClass: BuiltinClassId
 
     // current executable under test
     var currentExecutable: ExecutableId?
@@ -105,11 +110,11 @@ internal interface CgContextOwner {
     // imports required by the test class being built
     val collectedImports: MutableSet<Import>
 
-    val importedStaticMethods: MutableSet<MethodId>
+    val importedStaticMethods: MutableSet<MethodExecutableId>
     val importedClasses: MutableSet<ClassId>
 
     // util methods required by the test class being built
-    val requiredUtilMethods: MutableSet<MethodId>
+    val requiredUtilMethods: MutableSet<MethodExecutableId>
 
     // test methods being generated
     val testMethods: MutableList<CgTestMethod>
@@ -242,20 +247,20 @@ internal interface CgContextOwner {
         currentExecutable = executableId
     }
 
-    fun addExceptionIfNeeded(exception: ClassId) {
+        fun addExceptionIfNeeded(exception: ClassId) = runBlocking {
         if (exception !is BuiltinClassId) {
             require(exception isSubtypeOf Throwable::class.id) {
                 "Class $exception which is not a Throwable was passed"
             }
 
-            val isUnchecked = !exception.jClass.isCheckedException
+            val isUnchecked = !exception.isCheckedException
             val alreadyAdded =
                 collectedExceptions.any { existingException -> exception isSubtypeOf existingException }
 
-            if (isUnchecked || alreadyAdded) return
+            if (isUnchecked || alreadyAdded) return@runBlocking
 
             collectedExceptions
-                .removeIf { existingException -> existingException isSubtypeOf exception }
+                .removeIf { existingException -> existingException blockingIsSubtypeOf exception }
         }
 
         if (collectedExceptions.add(exception)) {
@@ -325,14 +330,14 @@ internal interface CgContextOwner {
     /**
      * Check whether a method is an util method of the current class
      */
-    val MethodId.isUtil: Boolean
-        get() = this in outerMostTestClass.possibleUtilMethodIds
+    val MethodExecutableId.isUtil: Boolean
+        get() = methodId in outerMostTestClass.possibleUtilMethodIds
 
     /**
      * Checks is it our util reflection field getter method.
      * When this method is used with type cast in Kotlin, this type cast have to be safety
      */
-    val MethodId.isGetFieldUtilMethod: Boolean
+    val MethodExecutableId.isGetFieldUtilMethod: Boolean
         get() = isUtil && (name == getFieldValue.name || name == getStaticFieldValue.name)
 
     val testClassThisInstance: CgThisInstance
@@ -394,9 +399,9 @@ internal data class CgContext(
     override val collectedExceptions: MutableSet<ClassId> = mutableSetOf(),
     override val collectedMethodAnnotations: MutableSet<CgAnnotation> = mutableSetOf(),
     override val collectedImports: MutableSet<Import> = mutableSetOf(),
-    override val importedStaticMethods: MutableSet<MethodId> = mutableSetOf(),
+    override val importedStaticMethods: MutableSet<MethodExecutableId> = mutableSetOf(),
     override val importedClasses: MutableSet<ClassId> = mutableSetOf(),
-    override val requiredUtilMethods: MutableSet<MethodId> = mutableSetOf(),
+    override val requiredUtilMethods: MutableSet<MethodExecutableId> = mutableSetOf(),
     override val testMethods: MutableList<CgTestMethod> = mutableListOf(),
     override val existingMethodNames: MutableSet<String> = mutableSetOf(),
     override val prevStaticFieldValues: MutableMap<FieldId, CgVariable> = mutableMapOf(),
@@ -447,18 +452,14 @@ internal data class CgContext(
 
     private var _currentTestClassContext: TestClassContext? = null
 
-    override val outerMostTestClass: ClassId by lazy {
+    override val outerMostTestClass: BuiltinClassId get() {
         val packagePrefix = if (testClassPackageName.isNotEmpty()) "$testClassPackageName." else ""
         val simpleName = testClassCustomName ?: "${createTestClassName(classUnderTest.name)}Test"
         val name = "$packagePrefix$simpleName"
-        BuiltinClassId(
-            name = name,
-            canonicalName = name,
-            simpleName = simpleName
-        )
+        return builtInClass(name)
     }
 
-    override lateinit var currentTestClass: ClassId
+    override lateinit var currentTestClass: BuiltinClassId
 
     override fun <R> withTestClassFileScope(block: () -> R): R {
         clearClassScope()
@@ -493,13 +494,9 @@ internal data class CgContext(
         }
     }
 
-    private fun createClassIdForNestedClass(testClassModel: TestClassModel): ClassId {
+    private fun createClassIdForNestedClass(testClassModel: TestClassModel): BuiltinClassId {
         val simpleName = "${testClassModel.classUnderTest.simpleName}Test"
-        return BuiltinClassId(
-            name = currentTestClass.name + "$" + simpleName,
-            canonicalName = currentTestClass.canonicalName + "." + simpleName,
-            simpleName = simpleName
-        )
+        return builtInClass(currentTestClass.name + "$" + simpleName, isNested = true)
     }
 
     private fun clearClassScope() {

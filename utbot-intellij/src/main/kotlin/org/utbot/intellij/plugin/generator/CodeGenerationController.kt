@@ -69,6 +69,11 @@ import org.utbot.intellij.plugin.ui.TestsReportNotifier
 import org.utbot.intellij.plugin.ui.WarningTestsReportNotifier
 import org.utbot.intellij.plugin.ui.utils.getOrCreateSarifReportsPath
 import org.utbot.intellij.plugin.ui.utils.showErrorDialogLater
+import org.utbot.intellij.plugin.util.IntelliJApiHelper.Target.EDT_LATER
+import org.utbot.intellij.plugin.util.IntelliJApiHelper.Target.READ_ACTION
+import org.utbot.intellij.plugin.util.IntelliJApiHelper.Target.THREAD_POOL
+import org.utbot.intellij.plugin.util.IntelliJApiHelper.Target.WRITE_ACTION
+import org.utbot.intellij.plugin.util.IntelliJApiHelper.run
 import org.utbot.intellij.plugin.util.RunConfigurationHelper
 import org.utbot.intellij.plugin.util.signature
 import org.utbot.sarif.SarifReport
@@ -77,8 +82,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.reflect.KClass
 import kotlin.reflect.full.functions
-import org.utbot.intellij.plugin.util.IntelliJApiHelper.Target.*
-import org.utbot.intellij.plugin.util.IntelliJApiHelper.run
 
 object CodeGenerationController {
 

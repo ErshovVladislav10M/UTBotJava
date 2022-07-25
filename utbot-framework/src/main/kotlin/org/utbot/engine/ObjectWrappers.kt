@@ -24,7 +24,8 @@ import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtPrimitiveModel
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.id
-import org.utbot.framework.plugin.api.util.constructorId
+import org.utbot.framework.plugin.api.util.asExecutableConstructor
+import org.utbot.framework.plugin.api.util.findConstructor
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.stringClassId
 import org.utbot.framework.util.nextModelName
@@ -32,10 +33,7 @@ import soot.RefType
 import soot.Scene
 import soot.SootClass
 import soot.SootMethod
-import java.util.Optional
-import java.util.OptionalDouble
-import java.util.OptionalInt
-import java.util.OptionalLong
+import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.reflect.KClass
 
@@ -234,10 +232,10 @@ data class ThrowableWrapper(val throwable: Throwable) : WrapperInterface {
         return UtAssembleModel(addr, classId, modelName, instantiationChain)
             .apply {
                 instantiationChain += when (val message = throwable.message) {
-                    null -> UtExecutableCallModel(null, constructorId(classId), emptyList(), this)
+                    null -> UtExecutableCallModel(null, classId.findConstructor().asExecutableConstructor(), emptyList(), this)
                     else -> UtExecutableCallModel(
                         null,
-                        constructorId(classId, stringClassId),
+                        classId.findConstructor(stringClassId).asExecutableConstructor(),
                         listOf(UtPrimitiveModel(message)),
                         this,
                     )

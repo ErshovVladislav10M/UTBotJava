@@ -1,19 +1,17 @@
 package org.utbot.external.api
 
 import org.utbot.framework.assemble.AssembleModelGenerator
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.ExecutableId
-import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.UtArrayModel
-import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtClassRefModel
 import org.utbot.framework.plugin.api.UtCompositeModel
 import org.utbot.framework.plugin.api.UtMethod
 import org.utbot.framework.plugin.api.UtModel
+import org.utbot.framework.plugin.api.util.findField
 import org.utbot.framework.plugin.api.util.id
-import java.lang.reflect.Field
+import org.utbot.jcdb.api.ClassId
 import java.lang.reflect.Method
-import java.util.IdentityHashMap
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.reflect.jvm.kotlinFunction
 
@@ -41,7 +39,7 @@ class UtModelFactory(
         modelIdCounter.incrementAndGet(),
         classId,
         generateMocksForFunctionsWithoutParameters,
-        fields.entries.associate { entry -> FieldId(classId, entry.key) to entry.value }.toMutableMap(),
+        fields.entries.associate { entry -> classId.findField(entry.key) to entry.value }.toMutableMap(),
         mocks
     )
 
@@ -69,14 +67,9 @@ class UtModelFactory(
 
     fun produceClassRefModel(clazz: Class<*>) = UtClassRefModel(
         modelIdCounter.incrementAndGet(),
-        classIdForType(clazz),
+        clazz.id,
         clazz
     )
-}
-
-fun fieldIdForJavaField(field: Field): FieldId {
-    val declaringClass = field.declaringClass
-    return FieldId(ClassId(field.declaringClass.canonicalName), field.name)
 }
 
 /**

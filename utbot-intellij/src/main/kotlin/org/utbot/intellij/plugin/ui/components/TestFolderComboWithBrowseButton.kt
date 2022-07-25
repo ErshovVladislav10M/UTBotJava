@@ -10,15 +10,14 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.ComboboxWithBrowseButton
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.ArrayUtil
-import java.io.File
-import javax.swing.DefaultComboBoxModel
-import javax.swing.JList
-import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import org.utbot.common.PathUtil
 import org.utbot.intellij.plugin.models.GenerateTestsModel
 import org.utbot.intellij.plugin.ui.utils.addDedicatedTestRoot
 import org.utbot.intellij.plugin.ui.utils.isGradle
 import org.utbot.intellij.plugin.ui.utils.suitableTestSourceRoots
+import java.io.File
+import javax.swing.DefaultComboBoxModel
+import javax.swing.JList
 
 class TestFolderComboWithBrowseButton(private val model: GenerateTestsModel) : ComboboxWithBrowseButton() {
 
@@ -51,9 +50,7 @@ class TestFolderComboWithBrowseButton(private val model: GenerateTestsModel) : C
             }
         }
 
-        val testRoots = model.potentialTestModules
-            .flatMap { it.suitableTestSourceRoots().toList() }
-            .toMutableList()
+        val testRoots = model.potentialTestModules.flatMap { it.suitableTestSourceRoots().toMutableList() }.toMutableList()
 
         // this method is blocked for Gradle, where multiple test modules can exist
         model.testModule.addDedicatedTestRoot(testRoots)

@@ -8,7 +8,7 @@ import org.utbot.fuzzer.FuzzedParameter
 import org.utbot.fuzzer.IdGenerator
 import org.utbot.fuzzer.ModelProvider
 import org.utbot.fuzzer.ModelProvider.Companion.yieldAllValues
-import java.util.function.IntSupplier
+import org.utbot.jcdb.api.ifArrayGetElementClass
 
 class ArrayModelProvider(
     private val idGenerator: IdGenerator<Int>
@@ -23,10 +23,10 @@ class ArrayModelProvider(
                         id = idGenerator.createId(),
                         arrayClassId,
                         length = arraySize,
-                        arrayClassId.elementClassId!!.defaultValueModel(),
+                        arrayClassId.ifArrayGetElementClass()!!.defaultValueModel(),
                         mutableMapOf()
                     ).fuzzed {
-                        this.summary = "%var% = ${arrayClassId.elementClassId!!.simpleName}[$arraySize]"
+                        this.summary = "%var% = ${arrayClassId.ifArrayGetElementClass()!!.simpleName}[$arraySize]"
                     }
                 })
             }

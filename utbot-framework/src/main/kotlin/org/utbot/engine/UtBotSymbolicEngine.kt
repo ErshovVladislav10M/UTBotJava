@@ -58,7 +58,6 @@ import org.utbot.framework.UtSettings.useDebugVisualization
 import org.utbot.framework.concrete.UtConcreteExecutionData
 import org.utbot.framework.concrete.UtConcreteExecutionResult
 import org.utbot.framework.concrete.UtExecutionInstrumentation
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.ConcreteExecutionFailureException
 import org.utbot.framework.plugin.api.EnvironmentModels
 import org.utbot.framework.plugin.api.Instruction
@@ -74,14 +73,16 @@ import org.utbot.framework.plugin.api.UtNullModel
 import org.utbot.framework.plugin.api.UtOverflowFailure
 import org.utbot.framework.plugin.api.UtResult
 import org.utbot.framework.plugin.api.UtSymbolicExecution
+import org.utbot.framework.plugin.api.isAnonymous
 import org.utbot.framework.plugin.api.onSuccess
-import org.utbot.framework.util.graph
+import org.utbot.framework.plugin.api.packageName
+import org.utbot.framework.plugin.api.util.description
 import org.utbot.framework.plugin.api.util.executableId
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.utContext
-import org.utbot.framework.plugin.api.util.description
-import org.utbot.framework.util.jimpleBody
 import org.utbot.framework.plugin.api.util.voidClassId
+import org.utbot.framework.util.graph
+import org.utbot.framework.util.jimpleBody
 import org.utbot.fuzzer.FallbackModelProvider
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
@@ -94,6 +95,7 @@ import org.utbot.fuzzer.defaultModelProviders
 import org.utbot.fuzzer.fuzz
 import org.utbot.fuzzer.providers.ObjectModelProvider
 import org.utbot.instrumentation.ConcreteExecutor
+import org.utbot.jcdb.api.ClassId
 import soot.jimple.Stmt
 import soot.tagkit.ParamNamesTag
 import java.lang.reflect.Method

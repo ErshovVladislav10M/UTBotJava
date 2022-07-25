@@ -1,6 +1,8 @@
 package org.utbot.engine
 
 import com.github.curiousoddman.rgxgen.RgxGen
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 import org.utbot.common.unreachableBranch
 import org.utbot.engine.overrides.strings.UtNativeString
 import org.utbot.engine.overrides.strings.UtString
@@ -38,20 +40,19 @@ import org.utbot.framework.plugin.api.UtPrimitiveModel
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.classId
 import org.utbot.framework.plugin.api.id
+import org.utbot.framework.plugin.api.util.asExecutable
 import org.utbot.framework.plugin.api.util.charArrayClassId
 import org.utbot.framework.plugin.api.util.charClassId
-import org.utbot.framework.plugin.api.util.constructorId
 import org.utbot.framework.plugin.api.util.defaultValueModel
+import org.utbot.framework.plugin.api.util.findConstructor
 import org.utbot.framework.util.nextModelName
-import kotlin.math.max
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentSetOf
 import soot.CharType
 import soot.IntType
 import soot.Scene
 import soot.SootClass
 import soot.SootField
 import soot.SootMethod
+import kotlin.math.max
 
 val utStringClass: SootClass
     get() = Scene.v().getSootClass(UtString::class.qualifiedName)
@@ -185,7 +186,7 @@ class StringWrapper : BaseOverriddenWrapper(utStringClass.name) {
             .apply {
                 instantiationChain += UtExecutableCallModel(
                     instance = null,
-                    constructorId(classId, STRING_TYPE.classId),
+                    classId.findConstructor(STRING_TYPE.classId).asExecutable(),
                     listOf(stringModel),
                     this
                 )
@@ -336,7 +337,7 @@ sealed class UtAbstractStringBuilderWrapper(className: String) : BaseOverriddenW
 
         val instantiationChain = mutableListOf<UtStatementModel>()
         val modificationsChain = mutableListOf<UtStatementModel>()
-        val constructorId = constructorId(wrapper.type.classId, STRING_TYPE.classId)
+        val constructorId = wrapper.type.classId.findConstructor(STRING_TYPE.classId).asExecutable()
         return UtAssembleModel(addr, wrapper.type.classId, modelName, instantiationChain, modificationsChain)
             .apply {
                 instantiationChain += UtExecutableCallModel(

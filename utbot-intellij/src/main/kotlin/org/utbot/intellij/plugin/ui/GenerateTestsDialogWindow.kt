@@ -75,24 +75,6 @@ import com.intellij.util.ui.JBUI.scale
 import com.intellij.util.ui.JBUI.size
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
-import java.awt.BorderLayout
-import java.awt.Color
-import java.awt.event.ActionEvent
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.text.ParseException
-import java.util.Objects
-import java.util.concurrent.TimeUnit
-import javax.swing.AbstractAction
-import javax.swing.Action
-import javax.swing.DefaultComboBoxModel
-import javax.swing.JButton
-import javax.swing.JComboBox
-import javax.swing.JComponent
-import javax.swing.JList
-import javax.swing.JPanel
-import kotlin.streams.toList
 import org.jetbrains.concurrency.Promise
 import org.jetbrains.concurrency.thenRun
 import org.jetbrains.kotlin.asJava.classes.KtUltraLightClass
@@ -130,13 +112,30 @@ import org.utbot.intellij.plugin.ui.utils.addSourceRootIfAbsent
 import org.utbot.intellij.plugin.ui.utils.allLibraries
 import org.utbot.intellij.plugin.ui.utils.findFrameworkLibrary
 import org.utbot.intellij.plugin.ui.utils.getOrCreateTestResourcesPath
-import org.utbot.intellij.plugin.ui.utils.isGradle
 import org.utbot.intellij.plugin.ui.utils.kotlinTargetPlatform
 import org.utbot.intellij.plugin.ui.utils.parseVersion
 import org.utbot.intellij.plugin.ui.utils.testResourceRootTypes
 import org.utbot.intellij.plugin.ui.utils.testRootType
 import org.utbot.intellij.plugin.util.IntelliJApiHelper
 import org.utbot.intellij.plugin.util.isAbstract
+import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.event.ActionEvent
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.text.ParseException
+import java.util.*
+import java.util.concurrent.TimeUnit
+import javax.swing.AbstractAction
+import javax.swing.Action
+import javax.swing.DefaultComboBoxModel
+import javax.swing.JButton
+import javax.swing.JComboBox
+import javax.swing.JComponent
+import javax.swing.JList
+import javax.swing.JPanel
+import kotlin.streams.toList
 
 private const val RECENTS_KEY = "org.utbot.recents"
 
@@ -436,7 +435,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
         val testRoot = getTestRoot()
             ?: return ValidationInfo("Test source root is not configured", testSourceFolderField.childComponent)
 
-        if (!model.project.isGradle() && findReadOnlyContentEntry(testRoot) == null) {
+        if (findReadOnlyContentEntry(testRoot) == null) {
             return ValidationInfo("Test source root is located out of content entry", testSourceFolderField.childComponent)
         }
 

@@ -1,7 +1,7 @@
 package org.utbot.engine
 
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.id
+import org.utbot.jcdb.api.ClassId
 import soot.RefType
 import soot.Scene
 import soot.SootClass

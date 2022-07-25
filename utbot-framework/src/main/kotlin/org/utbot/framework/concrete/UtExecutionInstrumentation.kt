@@ -7,7 +7,6 @@ import org.utbot.framework.UtSettings
 import org.utbot.framework.assemble.AssembleModelGenerator
 import org.utbot.framework.plugin.api.Coverage
 import org.utbot.framework.plugin.api.EnvironmentModels
-import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.Instruction
 import org.utbot.framework.plugin.api.TimeoutException
 import org.utbot.framework.plugin.api.UtAssembleModel
@@ -23,13 +22,13 @@ import org.utbot.framework.plugin.api.UtNewInstanceInstrumentation
 import org.utbot.framework.plugin.api.UtSandboxFailure
 import org.utbot.framework.plugin.api.UtStaticMethodInstrumentation
 import org.utbot.framework.plugin.api.UtTimeoutException
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.type
 import org.utbot.framework.plugin.api.util.UtContext
-import org.utbot.framework.plugin.api.util.jField
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.singleExecutableId
 import org.utbot.framework.plugin.api.util.utContext
 import org.utbot.framework.plugin.api.util.withUtContext
-import org.utbot.framework.plugin.api.withReflection
 import org.utbot.instrumentation.instrumentation.ArgumentList
 import org.utbot.instrumentation.instrumentation.Instrumentation
 import org.utbot.instrumentation.instrumentation.InvokeInstrumentation
@@ -38,9 +37,10 @@ import org.utbot.instrumentation.instrumentation.et.ExplicitThrowInstruction
 import org.utbot.instrumentation.instrumentation.et.TraceHandler
 import org.utbot.instrumentation.instrumentation.instrumenter.Instrumenter
 import org.utbot.instrumentation.instrumentation.mock.MockClassVisitor
+import org.utbot.jcdb.api.FieldId
 import java.security.AccessControlException
 import java.security.ProtectionDomain
-import java.util.IdentityHashMap
+import java.util.*
 import kotlin.reflect.jvm.javaMethod
 
 /**
@@ -130,7 +130,7 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
         arguments: ArgumentList,
         parameters: Any?
     ): UtConcreteExecutionResult {
-        withReflection {
+//        withReflection {
         if (parameters !is UtConcreteExecutionData) {
             throw IllegalArgumentException("Argument parameters must be of type UtConcreteExecutionData, but was: ${parameters?.javaClass}")
         }
@@ -170,43 +170,46 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
                 val cache = constructor.objectToModelCache
                 val utCompositeModelStrategy = ConstructOnlyUserClassesOrCachedObjectsStrategy(pathsToUserClasses, cache)
                 val utModelConstructor = UtModelConstructor(cache, utCompositeModelStrategy)
-                utModelConstructor.run {
-                    val concreteUtModelResult = concreteResult.fold({
-                        UtExecutionSuccess(construct(it, returnClassId))
-                    }) {
-                        sortOutException(it)
-                    }
+                with(reflection) {
 
-                    val stateAfterParametersWithThis = params.map { construct(it.value, it.clazz.id) }
-                    val stateAfterStatics = (staticFields.keys/* + traceHandler.computePutStatics()*/)
-                        .associateWith { fieldId ->
-                            fieldId.jField.run {
-                                val computedValue = withAccessibility { get(null) }
-                                val knownModel = stateBefore.statics[fieldId]
-                                val knownValue = staticFields[fieldId]
-                                if (knownModel != null && knownValue != null && knownValue == computedValue) {
-                                    knownModel
-                                } else {
-                                    construct(computedValue, fieldId.type)
+                    utModelConstructor.run {
+                        val concreteUtModelResult = concreteResult.fold({
+                            UtExecutionSuccess(construct(it, returnClassId))
+                        }) {
+                            sortOutException(it)
+                        }
+
+                        val stateAfterParametersWithThis = params.map { construct(it.value, it.clazz.id) }
+                        val stateAfterStatics = (staticFields.keys/* + traceHandler.computePutStatics()*/)
+                            .associateWith { fieldId ->
+                                fieldId.javaField.run {
+                                    val computedValue = withAccessibility { get(null) }
+                                    val knownModel = stateBefore.statics[fieldId]
+                                    val knownValue = staticFields[fieldId]
+                                    if (knownModel != null && knownValue != null && knownValue == computedValue) {
+                                        knownModel
+                                    } else {
+                                        construct(computedValue, fieldId.type)
+                                    }
                                 }
                             }
+                        val (stateAfterThis, stateAfterParameters) = if (stateBefore.thisInstance == null) {
+                            null to stateAfterParametersWithThis
+                        } else {
+                            stateAfterParametersWithThis.first() to stateAfterParametersWithThis.drop(1)
                         }
-                    val (stateAfterThis, stateAfterParameters) = if (stateBefore.thisInstance == null) {
-                        null to stateAfterParametersWithThis
-                    } else {
-                        stateAfterParametersWithThis.first() to stateAfterParametersWithThis.drop(1)
+                        val stateAfter = EnvironmentModels(stateAfterThis, stateAfterParameters, stateAfterStatics)
+                        UtConcreteExecutionResult(
+                            stateAfter,
+                            concreteUtModelResult,
+                            traceList.toApiCoverage()
+                        )
                     }
-                    val stateAfter = EnvironmentModels(stateAfterThis, stateAfterParameters, stateAfterStatics)
-                    UtConcreteExecutionResult(
-                        stateAfter,
-                        concreteUtModelResult,
-                        traceList.toApiCoverage()
-                    )
                 }
             }
 
             concreteExecutionResult
-        }
+//        }
         }
     }
 
@@ -217,7 +220,7 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
     )
 
     private val FieldId.isInaccessibleViaReflection: Boolean
-        get() = (name to declaringClass.name) in inaccessibleViaReflectionFields
+        get() = (name to classId.name) in inaccessibleViaReflectionFields
 
     private fun sortOutException(exception: Throwable): UtExecutionFailure {
         if (exception is TimeoutException) {
@@ -268,11 +271,12 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
         return instrumenter.classByteCode
     }
 
-    private fun <T> withStaticFields(staticFields: Map<FieldId, Any?>, block: () -> T): T {
+    private fun <T> withStaticFields(staticFields: Map<FieldId, Any?>, block: () -> T): T = with(reflection) {
         val savedFields = mutableMapOf<FieldId, Any?>()
         try {
             staticFields.forEach { (fieldId, value) ->
-                fieldId.jField.run {
+                val field = fieldId.javaField
+                field.run {
                     withAccessibility {
                         savedFields[fieldId] = get(null)
                         set(null, value)
@@ -282,7 +286,8 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
             return block()
         } finally {
             savedFields.forEach { (fieldId, value) ->
-                fieldId.jField.run {
+                val field = fieldId.javaField
+                field.run {
                     withAccessibility {
                         set(null, value)
                     }

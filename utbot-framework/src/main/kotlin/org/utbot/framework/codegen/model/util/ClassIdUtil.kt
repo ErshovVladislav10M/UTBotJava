@@ -1,8 +1,15 @@
 package org.utbot.framework.codegen.model.util
 
-import org.utbot.framework.plugin.api.ClassId
-import org.utbot.framework.plugin.api.util.id
-import org.utbot.framework.plugin.api.util.isArray
+import kotlinx.coroutines.runBlocking
+import org.utbot.framework.plugin.api.isAccessibleFrom
+import org.utbot.framework.plugin.api.packageName
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.ifArrayGetElementClass
+import org.utbot.jcdb.api.isLocal
+import org.utbot.jcdb.api.isPackagePrivate
+import org.utbot.jcdb.api.isProtected
+import org.utbot.jcdb.api.isPublic
+import org.utbot.jcdb.api.isSynthetic
 
 /**
  * For now we will count class accessible if it is:
@@ -13,20 +20,21 @@ import org.utbot.framework.plugin.api.util.isArray
  *
  * @param packageName name of the package we check accessibility from
  */
-infix fun ClassId.isAccessibleFrom(packageName: String): Boolean {
+infix fun ClassId.isAccessibleFrom(packageName: String): Boolean = runBlocking{
 
-    if (this.isLocal || this.isSynthetic) {
-        return false
+    if (isLocal() || isSynthetic()) {
+        return@runBlocking false
     }
 
-    val outerClassId = outerClass?.id
+    val outerClassId = outerClass()
     if (outerClassId != null && !outerClassId.isAccessibleFrom(packageName)) {
-        return false
+        return@runBlocking false
     }
-
-    return if (this.isArray) {
-        elementClassId!!.isAccessibleFrom(packageName)
+    val elementClassId = ifArrayGetElementClass()
+    if (elementClassId != null) {
+        elementClassId.isAccessibleFrom(packageName)
     } else {
-        isPublic || (this.packageName == packageName && (isPackagePrivate || isProtected))
+        val classPackage =this@isAccessibleFrom.packageName
+        isPublic() || (classPackage == packageName && (isPackagePrivate() || isProtected()))
     }
 }

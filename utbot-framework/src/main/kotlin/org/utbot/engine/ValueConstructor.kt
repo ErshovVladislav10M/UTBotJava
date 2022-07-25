@@ -2,12 +2,10 @@ package org.utbot.engine
 
 import org.utbot.common.invokeCatching
 import org.utbot.common.withAccessibility
-import org.utbot.framework.plugin.api.ClassId
-import org.utbot.framework.plugin.api.ConstructorId
+import org.utbot.framework.plugin.api.ConstructorExecutableId
 import org.utbot.framework.plugin.api.EnvironmentModels
-import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.FieldMockTarget
-import org.utbot.framework.plugin.api.MethodId
+import org.utbot.framework.plugin.api.MethodExecutableId
 import org.utbot.framework.plugin.api.MockId
 import org.utbot.framework.plugin.api.MockInfo
 import org.utbot.framework.plugin.api.MockTarget
@@ -35,12 +33,13 @@ import org.utbot.framework.plugin.api.UtValueExecution
 import org.utbot.framework.plugin.api.UtValueExecutionState
 import org.utbot.framework.plugin.api.UtVoidModel
 import org.utbot.framework.plugin.api.isMockModel
-import org.utbot.framework.plugin.api.util.constructor
-import org.utbot.framework.plugin.api.util.jField
-import org.utbot.framework.plugin.api.util.jClass
-import org.utbot.framework.plugin.api.util.method
+import org.utbot.framework.plugin.api.reflection
 import org.utbot.framework.plugin.api.util.utContext
 import org.utbot.framework.util.anyInstance
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.FieldId
+import org.utbot.jcdb.api.ifArrayGetElementClass
+import org.utbot.jcdb.api.jvmName
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import kotlin.reflect.KClass
@@ -164,7 +163,7 @@ class ValueConstructor {
             val staticValues = mutableMapOf<FieldId, UtConcreteValue<*>>()
 
             statics.forEach { (field, model) ->
-                val target = FieldMockTarget(model.classId.name, field.declaringClass.name, owner = null, field.name)
+                val target = FieldMockTarget(model.classId.name, field.classId.name, owner = null, field.name)
                 staticValues += field to construct(model, target)
             }
 
@@ -179,16 +178,18 @@ class ValueConstructor {
      *
      * Takes mock creation context (possible mock target) to create mock if required.
      */
-    private fun construct(model: UtModel, target: MockTarget?): UtConcreteValue<*> = withMockTarget(target) {
-        when (model) {
-            is UtNullModel -> UtConcreteValue(null, model.classId.jClass)
-            is UtPrimitiveModel -> UtConcreteValue(model.value, model.classId.jClass)
-            is UtEnumConstantModel -> UtConcreteValue(model.value)
-            is UtClassRefModel -> UtConcreteValue(model.value)
-            is UtCompositeModel -> UtConcreteValue(constructObject(model), model.classId.jClass)
-            is UtArrayModel -> UtConcreteValue(constructArray(model))
-            is UtAssembleModel -> UtConcreteValue(constructFromAssembleModel(model))
-            is UtVoidModel -> UtConcreteValue(Unit)
+    private fun construct(model: UtModel, target: MockTarget?): UtConcreteValue<*> = with(reflection) {
+        withMockTarget(target) {
+            when (model) {
+                is UtNullModel -> UtConcreteValue(null, model.classId.javaClass)
+                is UtPrimitiveModel -> UtConcreteValue(model.value, model.classId.javaClass)
+                is UtEnumConstantModel -> UtConcreteValue(model.value)
+                is UtClassRefModel -> UtConcreteValue(model.value)
+                is UtCompositeModel -> UtConcreteValue(constructObject(model), model.classId.javaClass)
+                is UtArrayModel -> UtConcreteValue(constructArray(model))
+                is UtAssembleModel -> UtConcreteValue(constructFromAssembleModel(model))
+                is UtVoidModel -> UtConcreteValue(Unit)
+            }
         }
     }
 
@@ -227,7 +228,7 @@ class ValueConstructor {
         constructedObjects[model] = classInstance
 
         model.fields.forEach { (fieldId, fieldModel) ->
-            val declaredField = fieldId.jField
+            val declaredField = with(reflection) {fieldId.javaField}
             val accessible = declaredField.isAccessible
 
             try {
@@ -269,8 +270,8 @@ class ValueConstructor {
         }
 
         with(model) {
-            val elementClassId = classId.elementClassId!!
-            return when (elementClassId.jvmName) {
+            val elementClassId = classId.ifArrayGetElementClass()!!
+            return when (elementClassId.name.jvmName()) {
                 "B" -> ByteArray(length) { primitive(constModel) }.apply {
                     constructedObjects[model] = this
                     stores.forEach { (index, model) -> this[index] = primitive(model) }
@@ -347,8 +348,8 @@ class ValueConstructor {
         val params = callModel.params.map { value(it) }
 
         val result = when (executable) {
-            is MethodId -> executable.call(params, instanceValue)
-            is ConstructorId -> executable.call(params)
+            is MethodExecutableId -> executable.call(params, instanceValue)
+            is ConstructorExecutableId -> executable.call(params)
         }
 
         // Ignore result if returnId is null. Otherwise add it to instance cache.
@@ -373,7 +374,7 @@ class ValueConstructor {
         val instanceClassId = instanceModel.classId
         val fieldModel = directSetterModel.fieldModel
 
-        val field = directSetterModel.fieldId.jField
+        val field = with(reflection) { directSetterModel.fieldId.javaField }
         val isAccessible = field.isAccessible
 
         try {
@@ -404,19 +405,21 @@ class ValueConstructor {
      */
     private fun value(model: UtModel) = construct(model, null).value
 
-    private fun MethodId.call(args: List<Any?>, instance: Any?): Any? =
+    private fun MethodExecutableId.call(args: List<Any?>, instance: Any?): Any? = with(reflection) {
         method.run {
             withAccessibility {
                 invokeCatching(obj = instance, args = args).getOrThrow()
             }
         }
+    }
 
-    private fun ConstructorId.call(args: List<Any?>): Any? =
+    private fun ConstructorExecutableId.call(args: List<Any?>): Any? = with(reflection) {
         constructor.run {
             withAccessibility {
                 newInstance(*args.toTypedArray())
             }
         }
+    }
 
     /**
      * Fetches primitive value from NutsModel to create array of primitives.
@@ -425,11 +428,12 @@ class ValueConstructor {
 
     private fun javaClass(id: ClassId) = kClass(id).java
 
-    private fun kClass(id: ClassId) =
-        if (id.elementClassId != null) {
-            arrayClassOf(id.elementClassId!!)
+    private fun kClass(id: ClassId): KClass<out Any> {
+        val elementClassId = id.ifArrayGetElementClass()
+        return if (elementClassId != null) {
+            arrayClassOf(elementClassId)
         } else {
-            when (id.jvmName) {
+            when (id.name.jvmName()) {
                 "B" -> Byte::class
                 "S" -> Short::class
                 "C" -> Char::class
@@ -441,13 +445,15 @@ class ValueConstructor {
                 else -> classLoader.loadClass(id.name).kotlin
             }
         }
+    }
 
-    private fun arrayClassOf(elementClassId: ClassId): KClass<*> =
-        if (elementClassId.elementClassId != null) {
-            val elementClass = arrayClassOf(elementClassId.elementClassId!!)
+    private fun arrayClassOf(elementClassId: ClassId): KClass<*> {
+        val classId = elementClassId.ifArrayGetElementClass()
+        return if (classId != null) {
+            val elementClass = arrayClassOf(classId)
             java.lang.reflect.Array.newInstance(elementClass.java, 0)::class
         } else {
-            when (elementClassId.jvmName) {
+            when (elementClassId.name.jvmName()) {
                 "B" -> ByteArray::class
                 "S" -> ShortArray::class
                 "C" -> CharArray::class
@@ -462,6 +468,7 @@ class ValueConstructor {
                 }
             }
         }
+    }
 }
 
 private fun <R> UtExecutionResult.map(transform: (model: UtModel) -> R): Result<R> = when (this) {

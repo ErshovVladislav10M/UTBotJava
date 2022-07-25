@@ -8,8 +8,8 @@ import org.utbot.common.getCurrentProcessId
 import org.utbot.common.pid
 import org.utbot.common.scanForResourcesContaining
 import org.utbot.common.utBotTempDirectory
-import org.utbot.framework.plugin.services.JdkInfoService
 import org.utbot.framework.UtSettings
+import org.utbot.framework.plugin.services.JdkInfoService
 import org.utbot.framework.plugin.services.WorkingDirService
 import org.utbot.instrumentation.Settings
 import org.utbot.instrumentation.agent.DynamicClassTransformer
@@ -33,7 +33,7 @@ class ChildProcessRunner {
         listOf(pathToJava.resolve("bin${File.separatorChar}java").toString()) +
             debugCmd +
             javaVersionSpecificArguments +
-            listOf("-javaagent:$jarFile", "-ea", "-jar", "$jarFile")
+            listOf("-javaagent:$jarFile", "-ea", "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED", "--illegal-access=warn", "-jar", "$jarFile")
     }
 
     var errorLogFile: File = NULL_FILE

@@ -1,16 +1,17 @@
 package org.utbot.examples.casts
 
-import org.utbot.examples.UtValueTestCaseChecker
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Test
 import org.utbot.examples.DoNotCalculate
+import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.eq
 import org.utbot.examples.ge
 import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.framework.codegen.CodeGeneration
 import org.utbot.framework.plugin.api.CodegenLanguage
-import org.junit.jupiter.api.Disabled
-import org.junit.jupiter.api.Test
 
 // TODO failed Kotlin compilation SAT-1332
+@Disabled
 internal class InstanceOfExampleTest : UtValueTestCaseChecker(
     testClass = InstanceOfExample::class,
     testCodeGeneration = true,

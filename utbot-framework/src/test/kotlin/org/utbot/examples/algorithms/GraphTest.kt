@@ -1,15 +1,17 @@
 package org.utbot.examples.algorithms
 
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
 import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.eq
 import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.examples.isException
-import org.junit.jupiter.api.Tag
-import org.junit.jupiter.api.Test
 
 internal class GraphTest : UtValueTestCaseChecker(testClass = GraphExample::class) {
     @Test
     @Tag("slow")
+    @Disabled
     fun testRunFindCycle() {
         checkWithException(
             GraphExample::runFindCycle,

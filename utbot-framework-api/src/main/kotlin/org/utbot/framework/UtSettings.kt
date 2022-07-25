@@ -4,7 +4,7 @@ import mu.KotlinLogging
 import org.utbot.common.PathUtil.toPath
 import java.io.FileInputStream
 import java.io.IOException
-import java.util.Properties
+import java.util.*
 import kotlin.properties.PropertyDelegateProvider
 import kotlin.reflect.KProperty
 
@@ -221,7 +221,7 @@ object UtSettings {
      *
      * True by default.
      */
-    var useConcreteExecution by getBooleanProperty(true)
+    var useConcreteExecution by getBooleanProperty(false)
 
     /**
      * Enable check of full coverage for methods with code generations tests.
@@ -313,7 +313,7 @@ object UtSettings {
      *
      * False by default (for saving disk space).
      */
-    var logConcreteExecutionErrors by getBooleanProperty(false)
+    var logConcreteExecutionErrors by getBooleanProperty(true)
 
     /**
      * Number of branch instructions using for clustering executions in the test minimization phase.

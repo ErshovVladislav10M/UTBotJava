@@ -1,20 +1,21 @@
 package org.utbot.fuzzer.providers
 
-import org.utbot.framework.plugin.api.ConstructorId
 import org.utbot.framework.plugin.api.ExecutableId
-import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtStatementModel
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.util.asExecutable
+import org.utbot.framework.plugin.api.util.asExecutableConstructor
+import org.utbot.framework.plugin.api.util.findConstructor
+import org.utbot.framework.plugin.api.util.findMethod
 import org.utbot.framework.plugin.api.util.id
-import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedParameter
 import org.utbot.fuzzer.IdGenerator
 import org.utbot.fuzzer.ModelProvider
 import org.utbot.fuzzer.ModelProvider.Companion.yieldAllValues
-import java.util.function.IntSupplier
 
 /**
  * Provides different collection for concrete classes.
@@ -36,14 +37,16 @@ class CollectionModelProvider(
         java.util.Iterator::class.java to ::createIteratorModels,
     )
 
-    override fun generate(description: FuzzedMethodDescription): Sequence<FuzzedParameter> = sequence {
-        description.parametersMap
-            .asSequence()
-            .forEach { (classId, indices) ->
-                 generators[classId.jClass]?.let { createModels ->
-                     yieldAllValues(indices, createModels().map { it.fuzzed() })
-                 }
-            }
+    override fun generate(description: FuzzedMethodDescription): Sequence<FuzzedParameter> = with(reflection) {
+        sequence {
+            description.parametersMap
+                .asSequence()
+                .forEach { (classId, indices) ->
+                    generators[classId.javaClass]?.let { createModels ->
+                        yieldAllValues(indices, createModels().map { it.fuzzed() })
+                    }
+                }
+        }
     }
 
     private fun createListModels(): List<UtAssembleModel> {
@@ -87,9 +90,13 @@ class CollectionModelProvider(
         )
     }
 
-    private fun Class<*>.asConstructor() = ConstructorId(id, emptyList())
+    private fun Class<*>.asConstructor() = id.findConstructor().asExecutableConstructor()
 
-    private fun Class<*>.methodCall(methodName: String, returnType: Class<*>, params: List<Class<*>> = emptyList()) = MethodId(id, methodName, returnType.id, params.map { it.id })
+    private fun Class<*>.methodCall(methodName: String, returnType: Class<*>, params: List<Class<*>> = emptyList()) = id.findMethod(
+        methodName,
+        returnType.id,
+        *params.map { it.id })
+        .asExecutable()
 
     private fun Class<*>.createdBy(init: ExecutableId, params: List<UtModel> = emptyList()): UtAssembleModel {
         val instantiationChain = mutableListOf<UtStatementModel>()

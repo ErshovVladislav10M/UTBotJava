@@ -1,5 +1,6 @@
 package org.utbot.framework.codegen.model.constructor.tree
 
+import kotlinx.coroutines.runBlocking
 import org.utbot.framework.codegen.model.constructor.builtin.forName
 import org.utbot.framework.codegen.model.constructor.builtin.setArrayElement
 import org.utbot.framework.codegen.model.constructor.context.CgContext
@@ -13,6 +14,7 @@ import org.utbot.framework.codegen.model.constructor.util.isDefaultValueOf
 import org.utbot.framework.codegen.model.constructor.util.isNotDefaultValueOf
 import org.utbot.framework.codegen.model.constructor.util.typeCast
 import org.utbot.framework.codegen.model.tree.CgAllocateArray
+import org.utbot.framework.codegen.model.tree.CgClassType
 import org.utbot.framework.codegen.model.tree.CgDeclaration
 import org.utbot.framework.codegen.model.tree.CgEnumConstantAccess
 import org.utbot.framework.codegen.model.tree.CgExpression
@@ -22,6 +24,7 @@ import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgStaticFieldAccess
 import org.utbot.framework.codegen.model.tree.CgValue
 import org.utbot.framework.codegen.model.tree.CgVariable
+import org.utbot.framework.codegen.model.tree.type
 import org.utbot.framework.codegen.model.util.at
 import org.utbot.framework.codegen.model.util.canBeSetIn
 import org.utbot.framework.codegen.model.util.get
@@ -31,9 +34,8 @@ import org.utbot.framework.codegen.model.util.lessThan
 import org.utbot.framework.codegen.model.util.nullLiteral
 import org.utbot.framework.codegen.model.util.resolve
 import org.utbot.framework.plugin.api.BuiltinClassId
-import org.utbot.framework.plugin.api.ClassId
-import org.utbot.framework.plugin.api.ConstructorId
-import org.utbot.framework.plugin.api.MethodId
+import org.utbot.framework.plugin.api.ConstructorExecutableId
+import org.utbot.framework.plugin.api.MethodExecutableId
 import org.utbot.framework.plugin.api.UtArrayModel
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtClassRefModel
@@ -46,17 +48,22 @@ import org.utbot.framework.plugin.api.UtNullModel
 import org.utbot.framework.plugin.api.UtPrimitiveModel
 import org.utbot.framework.plugin.api.UtReferenceModel
 import org.utbot.framework.plugin.api.UtVoidModel
+import org.utbot.framework.plugin.api.isStatic
+import org.utbot.framework.plugin.api.returnType
+import org.utbot.framework.plugin.api.type
 import org.utbot.framework.plugin.api.util.defaultValueModel
-import org.utbot.framework.plugin.api.util.jField
-import org.utbot.framework.plugin.api.util.findFieldByIdOrNull
+import org.utbot.framework.plugin.api.util.findFieldOrNull
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.intClassId
 import org.utbot.framework.plugin.api.util.isArray
+import org.utbot.framework.plugin.api.util.isNullable
 import org.utbot.framework.plugin.api.util.isPrimitiveWrapperOrString
-import org.utbot.framework.plugin.api.util.stringClassId
-import org.utbot.framework.plugin.api.util.wrapperByPrimitive
-import java.lang.reflect.Field
-import java.lang.reflect.Modifier
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.autoboxIfNeeded
+import org.utbot.jcdb.api.ifArrayGetElementClass
+import kotlin.collections.component1
+import kotlin.collections.component2
+import kotlin.collections.set
 
 /**
  * Constructs CgValue or CgVariable given a UtModel
@@ -107,7 +114,7 @@ internal class CgVariableConstructor(val context: CgContext) :
         } else valueByModel.getOrPut(model) {
             when (model) {
                 is UtNullModel -> nullLiteral()
-                is UtPrimitiveModel -> CgLiteral(model.classId, model.value)
+                is UtPrimitiveModel -> CgLiteral(CgClassType(model.classId), model.value)
                 is UtReferenceModel -> error("Unexpected UtReferenceModel: ${model::class}")
                 is UtVoidModel -> error("Unexpected UtVoidModel: ${model::class}")
             }
@@ -118,19 +125,18 @@ internal class CgVariableConstructor(val context: CgContext) :
         val obj = if (model.isMock) {
             mockFrameworkManager.createMockFor(model, baseName)
         } else {
-            newVar(model.classId, baseName) { testClassThisInstance[createInstance](model.classId.name) }
+            newVar(model.classId.type(true), baseName) { testClassThisInstance[createInstance](model.classId.name) }
         }
 
         valueByModelId[model.id] = obj
 
-        require(obj.type !is BuiltinClassId) {
+        require(obj.type.classId !is BuiltinClassId) {
             "Unexpected BuiltinClassId ${obj.type} found while constructing from composite model"
         }
 
         for ((fieldId, fieldModel) in model.fields) {
-            val field = fieldId.jField
             val variableForField = getOrCreateVariable(fieldModel)
-            val fieldFromVariableSpecifiedType = obj.type.findFieldByIdOrNull(fieldId)
+            val fieldFromVariableSpecifiedType = obj.type.classId.findFieldOrNull(fieldId.name)
 
             // we cannot set field directly if variable declared type does not have such field
             // or we cannot directly create variable for field with the specified type (it is private, for example)
@@ -139,10 +145,10 @@ internal class CgVariableConstructor(val context: CgContext) :
             // branchRegisterRequest.byteBuffer = heapByteBuffer;
             // byteBuffer is field of type ByteBuffer and upper line is incorrect
             val canFieldBeDirectlySetByVariableAndFieldTypeRestrictions =
-                fieldFromVariableSpecifiedType != null && fieldFromVariableSpecifiedType.type.id == variableForField.type
+                fieldFromVariableSpecifiedType != null && fieldFromVariableSpecifiedType.type == variableForField.type.classId
             if (canFieldBeDirectlySetByVariableAndFieldTypeRestrictions && fieldId.canBeSetIn(testClassPackageName)) {
                 // TODO: check if it is correct to use declaringClass of a field here
-                val fieldAccess = if (field.isStatic) CgStaticFieldAccess(fieldId) else CgFieldAccess(obj, fieldId)
+                val fieldAccess = if (fieldId.isStatic) CgStaticFieldAccess(fieldId) else CgFieldAccess(obj, fieldId)
                 fieldAccess `=` variableForField
             } else {
                 // composite models must not have info about static fields, hence only non-static fields are set here
@@ -164,12 +170,12 @@ internal class CgVariableConstructor(val context: CgContext) :
                     val executable = statementModel.executable
                     val params = statementModel.params
                     val cgCall = when (executable) {
-                        is MethodId -> {
+                        is MethodExecutableId -> {
                             val caller = statementModel.instance?.let { declareOrGet(it) }
                             val args = params.map { declareOrGet(it) }
                             caller[executable](*args.toTypedArray())
                         }
-                        is ConstructorId -> {
+                        is ConstructorExecutableId -> {
                             val args = params.map { declareOrGet(it) }
                             executable(*args.toTypedArray())
                         }
@@ -180,12 +186,12 @@ internal class CgVariableConstructor(val context: CgContext) :
                         +cgCall
                     } else {
                         val type = when (executable) {
-                            is MethodId -> executable.returnType
-                            is ConstructorId -> executable.classId
+                            is MethodExecutableId -> executable.methodId.let { it.returnType.type(it.isNullable) }
+                            is ConstructorExecutableId -> executable.classId.type(false)
                         }
 
                         // Don't use redundant constructors for primitives and String
-                        val initExpr = if (isPrimitiveWrapperOrString(type)) cgLiteralForWrapper(params) else cgCall
+                        val initExpr = if (isPrimitiveWrapperOrString(type.classId)) cgLiteralForWrapper(params) else cgCall
                         newVar(type, statementModel.returnValue, baseName) { initExpr }
                             .takeIf { statementModel == model.finalInstantiationModel }
                             ?.also { valueByModelId[model.id] = it }
@@ -202,22 +208,17 @@ internal class CgVariableConstructor(val context: CgContext) :
      * with direct setting of the value. The reason is that in Kotlin constructors
      * of primitive wrappers are private.
      */
-    private fun cgLiteralForWrapper(params: List<UtModel>): CgLiteral {
+    private fun cgLiteralForWrapper(params: List<UtModel>): CgLiteral = runBlocking {
         val paramModel = params.singleOrNull()
         require(paramModel is UtPrimitiveModel) { "Incorrect param models for primitive wrapper" }
 
-        val classId = wrapperByPrimitive[paramModel.classId]
-            ?: if (paramModel.classId == stringClassId) {
-                stringClassId
-            } else {
-                error("${paramModel.classId} is not a primitive wrapper or a string")
-            }
+        val classId = paramModel.classId.autoboxIfNeeded()
 
-        return CgLiteral(classId, paramModel.value)
+        CgLiteral(CgClassType(classId), paramModel.value)
     }
 
     private fun constructArray(arrayModel: UtArrayModel, baseName: String?): CgVariable {
-        val elementType = arrayModel.classId.elementClassId!!
+        val elementType = arrayModel.classId.ifArrayGetElementClass()!!
         val elementModels = (0 until arrayModel.length).map {
             arrayModel.stores.getOrDefault(it, arrayModel.constModel)
         }
@@ -238,10 +239,10 @@ internal class CgVariableConstructor(val context: CgContext) :
             }
             arrayInitializer(arrayModel.classId, elementType, elements)
         } else {
-            CgAllocateArray(arrayModel.classId, elementType, arrayModel.length)
+            CgAllocateArray(arrayModel.classId.type(false), elementType, arrayModel.length)
         }
 
-        val array = newVar(arrayModel.classId, baseName) { initializer }
+        val array = newVar(arrayModel.classId.type(false), baseName) { initializer }
         valueByModelId[arrayModel.id] = array
 
         if (canInitWithValues) {
@@ -342,7 +343,7 @@ internal class CgVariableConstructor(val context: CgContext) :
     }
 
     private fun constructEnumConstant(model: UtEnumConstantModel, baseName: String?): CgVariable {
-        return newVar(model.classId, baseName) {
+        return newVar(model.classId.type(false), baseName) {
             CgEnumConstantAccess(model.classId, model.value.name)
         }
     }
@@ -355,7 +356,7 @@ internal class CgVariableConstructor(val context: CgContext) :
             classId[forName](classId.name)
         }
 
-        return newVar(Class::class.id, baseName) { init }
+        return newVar(type<Class<*>>(false), baseName) { init }
     }
 
     /**
@@ -394,7 +395,7 @@ internal class CgVariableConstructor(val context: CgContext) :
         baseVariableName: String,
         initializer: Any?
     ): Pair<CgVariable, CgDeclaration> {
-        val declaration = CgDeclaration(variableType, baseVariableName.toVarName(), initializer.resolve())
+        val declaration = CgDeclaration(variableType.type(), baseVariableName.toVarName(), initializer.resolve())
         val variable = declaration.variable
         updateVariableScope(variable)
         return variable to declaration
@@ -413,13 +414,13 @@ internal class CgVariableConstructor(val context: CgContext) :
         val i = index.resolve()
         // we have to use reflection if we cannot easily cast array element to array type
         // (in case array does not have array type (maybe just object) or element is private class)
-        if (!type.isArray || (type != value.type && !value.type.isAccessibleFrom(testClassPackageName))) {
+        if (!type.classId.isArray || (type != value.type && !value.type.classId.isAccessibleFrom(testClassPackageName))) {
             +java.lang.reflect.Array::class.id[setArrayElement](this, i, value)
         } else {
             val arrayElement = if (type == value.type) {
                 value
             } else {
-                typeCast(type.elementClassId!!, value, isSafetyCast = true)
+                typeCast(type.classId.ifArrayGetElementClass()!!, value, isSafetyCast = true)
             }
 
             this.at(i) `=` arrayElement
@@ -432,15 +433,3 @@ internal class CgVariableConstructor(val context: CgContext) :
     private fun String.toVarName(): String = nameGenerator.variableName(this)
 
 }
-
-private val Field.isPublic: Boolean
-    get() = Modifier.isPublic(modifiers)
-
-private val Field.isPrivate: Boolean
-    get() = Modifier.isPrivate(modifiers)
-
-val Field.isStatic: Boolean
-    get() = Modifier.isStatic(modifiers)
-
-private val Field.isFinal: Boolean
-    get() = Modifier.isFinal(modifiers)

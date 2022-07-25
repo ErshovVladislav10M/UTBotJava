@@ -1,7 +1,14 @@
 package org.utbot.framework.codegen.model.util
 
-import org.utbot.framework.plugin.api.FieldId
+import kotlinx.coroutines.runBlocking
+import org.utbot.framework.plugin.api.isFinal
+import org.utbot.framework.plugin.api.packageName
 import org.utbot.framework.plugin.api.util.id
+import org.utbot.jcdb.api.FieldId
+import org.utbot.jcdb.api.isPackagePrivate
+import org.utbot.jcdb.api.isProtected
+import org.utbot.jcdb.api.isPublic
+import org.utbot.jcdb.api.isSynthetic
 
 /**
  * For now we will count field accessible if it is not private and its class is also accessible,
@@ -10,12 +17,12 @@ import org.utbot.framework.plugin.api.util.id
  *
  * @param packageName name of the package we check accessibility from
  */
-fun FieldId.isAccessibleFrom(packageName: String): Boolean {
-    val isClassAccessible = declaringClass.isAccessibleFrom(packageName)
-    val isAccessibleByVisibility = isPublic || (declaringClass.packageName == packageName && (isPackagePrivate || isProtected))
-    val isAccessibleFromPackageByModifiers = isAccessibleByVisibility && !isSynthetic
+fun FieldId.isAccessibleFrom(packageName: String): Boolean = runBlocking {
+    val isClassAccessible = classId.isAccessibleFrom(packageName)
+    val isAccessibleByVisibility = isPublic() || (classId.packageName == packageName && (isPackagePrivate() || isProtected()))
+    val isAccessibleFromPackageByModifiers = isAccessibleByVisibility && !isSynthetic()
 
-    return isClassAccessible && isAccessibleFromPackageByModifiers
+    isClassAccessible && isAccessibleFromPackageByModifiers
 }
 
 /**
@@ -23,10 +30,10 @@ fun FieldId.isAccessibleFrom(packageName: String): Boolean {
  */
 fun FieldId.canBeSetIn(packageName: String): Boolean = isAccessibleFrom(packageName) && !isFinal
 
-private val systemClassId = System::class.id
+private val systemClassId get() = System::class.id
 
 /**
  * Security field is inaccessible in Runtime even via reflection.
  */
 val FieldId.isInaccessible: Boolean
-    get() = name == "security" && declaringClass == systemClassId
+    get() = name == "security" && classId == systemClassId

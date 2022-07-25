@@ -4,12 +4,13 @@ import org.utbot.common.appendHtmlLine
 import org.utbot.engine.displayName
 import org.utbot.framework.codegen.ParametrizedTestSource
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
+import org.utbot.framework.codegen.model.constructor.TestClassModel
 import org.utbot.framework.codegen.model.constructor.context.CgContext
 import org.utbot.framework.codegen.model.constructor.context.CgContextOwner
 import org.utbot.framework.codegen.model.constructor.util.CgComponents
 import org.utbot.framework.codegen.model.constructor.util.CgStatementConstructor
-import org.utbot.framework.codegen.model.tree.CgMethod
 import org.utbot.framework.codegen.model.tree.CgExecutableUnderTestCluster
+import org.utbot.framework.codegen.model.tree.CgMethod
 import org.utbot.framework.codegen.model.tree.CgParameterDeclaration
 import org.utbot.framework.codegen.model.tree.CgRegion
 import org.utbot.framework.codegen.model.tree.CgSimpleRegion
@@ -18,7 +19,11 @@ import org.utbot.framework.codegen.model.tree.CgTestClass
 import org.utbot.framework.codegen.model.tree.CgTestClassFile
 import org.utbot.framework.codegen.model.tree.CgTestMethod
 import org.utbot.framework.codegen.model.tree.CgTestMethodCluster
-import org.utbot.framework.codegen.model.tree.CgTestMethodType.*
+import org.utbot.framework.codegen.model.tree.CgTestMethodType.CRASH
+import org.utbot.framework.codegen.model.tree.CgTestMethodType.FAILING
+import org.utbot.framework.codegen.model.tree.CgTestMethodType.PARAMETRIZED
+import org.utbot.framework.codegen.model.tree.CgTestMethodType.SUCCESSFUL
+import org.utbot.framework.codegen.model.tree.CgTestMethodType.TIMEOUT
 import org.utbot.framework.codegen.model.tree.CgTripleSlashMultilineComment
 import org.utbot.framework.codegen.model.tree.CgUtilMethod
 import org.utbot.framework.codegen.model.tree.buildTestClass
@@ -26,11 +31,10 @@ import org.utbot.framework.codegen.model.tree.buildTestClassBody
 import org.utbot.framework.codegen.model.tree.buildTestClassFile
 import org.utbot.framework.codegen.model.visitor.importUtilMethodDependencies
 import org.utbot.framework.plugin.api.ExecutableId
-import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.UtMethodTestSet
-import org.utbot.framework.codegen.model.constructor.TestClassModel
-import org.utbot.framework.plugin.api.util.description
-import org.utbot.framework.plugin.api.util.kClass
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.util.asExecutableMethod
+import org.utbot.jcdb.api.MethodId
 import kotlin.reflect.KClass
 
 internal class CgTestClassConstructor(val context: CgContext) :
@@ -167,7 +171,7 @@ internal class CgTestClassConstructor(val context: CgContext) :
     private fun processFailure(testSet: CgMethodTestSet, failure: Throwable) {
         codeGenerationErrors
             .getOrPut(testSet) { mutableMapOf() }
-            .merge(failure.description, 1, Int::plus)
+            .merge(failure.stackTraceToString(), 1, Int::plus)
     }
 
     private fun createParametrizedTestAndDataProvider(
@@ -205,10 +209,10 @@ internal class CgTestClassConstructor(val context: CgContext) :
             val method = requiredUtilMethods.first()
             requiredUtilMethods.remove(method)
             if (method.name !in existingMethodNames) {
-                utilMethods += CgUtilMethod(method)
-                importUtilMethodDependencies(method)
+                utilMethods += CgUtilMethod(method.methodId)
+                importUtilMethodDependencies(method.methodId)
                 existingMethodNames += method.name
-                requiredUtilMethods += method.dependencies()
+                requiredUtilMethods += method.methodId.dependencies().map { it.asExecutableMethod() }
             }
         }
         return utilMethods
@@ -244,8 +248,9 @@ data class TestsGenerationReport(
     var errors: MutableMap<ExecutableId, ErrorsCount> = mutableMapOf()
 ) {
     val classUnderTest: KClass<*>
-        get() = executables.firstOrNull()?.classId?.kClass
-            ?: error("No executables found in test report")
+        get() = with(reflection) {
+            executables.firstOrNull()?.classId?.javaClass?.kotlin ?: error("No executables found in test report")
+        }
 
     val initialWarnings: MutableList<() -> String> = mutableListOf()
     val hasWarnings: Boolean

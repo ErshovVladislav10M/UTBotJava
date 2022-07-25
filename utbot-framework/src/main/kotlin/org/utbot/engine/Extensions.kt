@@ -1,79 +1,32 @@
 package org.utbot.engine
 
 import com.google.common.collect.BiMap
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentHashMapOf
 import org.utbot.api.mock.UtMock
-import org.utbot.engine.pc.UtAddrExpression
-import org.utbot.engine.pc.UtArraySort
-import org.utbot.engine.pc.UtBoolExpression
-import org.utbot.engine.pc.UtBoolSort
-import org.utbot.engine.pc.UtBvConst
-import org.utbot.engine.pc.UtByteSort
-import org.utbot.engine.pc.UtCharSort
-import org.utbot.engine.pc.UtExpression
-import org.utbot.engine.pc.UtFp32Sort
-import org.utbot.engine.pc.UtFp64Sort
-import org.utbot.engine.pc.UtIntSort
-import org.utbot.engine.pc.UtLongSort
-import org.utbot.engine.pc.UtSeqSort
-import org.utbot.engine.pc.UtShortSort
-import org.utbot.engine.pc.UtSolverStatusKind
-import org.utbot.engine.pc.UtSolverStatusSAT
-import org.utbot.engine.pc.UtSort
-import org.utbot.engine.pc.mkArrayWithConst
-import org.utbot.engine.pc.mkBool
-import org.utbot.engine.pc.mkByte
-import org.utbot.engine.pc.mkChar
-import org.utbot.engine.pc.mkDouble
-import org.utbot.engine.pc.mkFloat
-import org.utbot.engine.pc.mkInt
-import org.utbot.engine.pc.mkLong
-import org.utbot.engine.pc.mkShort
-import org.utbot.engine.pc.mkString
-import org.utbot.engine.pc.toSort
+import org.utbot.engine.pc.*
 import org.utbot.framework.UtSettings.checkNpeInNestedMethods
 import org.utbot.framework.UtSettings.checkNpeInNestedNotPrivateMethods
-import org.utbot.framework.plugin.api.FieldId
+import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.UtMethod
 import org.utbot.framework.plugin.api.id
+import org.utbot.framework.plugin.api.util.executableId
+import org.utbot.framework.plugin.api.util.findFieldOrNull
+import org.utbot.jcdb.api.FieldId
+import soot.*
+import soot.SootClass.BODIES
+import soot.jimple.*
+import soot.jimple.internal.*
+import soot.tagkit.ArtificialEntityTag
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.lang.reflect.ParameterizedType
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KFunction
 import kotlin.reflect.KProperty
 import kotlin.reflect.jvm.javaConstructor
 import kotlin.reflect.jvm.javaMethod
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.persistentHashMapOf
-import org.utbot.engine.pc.UtSolverStatusUNDEFINED
-import org.utbot.framework.plugin.api.ExecutableId
-import org.utbot.framework.plugin.api.util.executableId
-import soot.ArrayType
-import soot.PrimType
-import soot.RefLikeType
-import soot.RefType
-import soot.Scene
-import soot.SootClass
-import soot.SootClass.BODIES
-import soot.SootField
-import soot.SootMethod
-import soot.Type
-import soot.Value
-import soot.jimple.Expr
-import soot.jimple.InvokeExpr
-import soot.jimple.JimpleBody
-import soot.jimple.StaticFieldRef
-import soot.jimple.Stmt
-import soot.jimple.internal.JDynamicInvokeExpr
-import soot.jimple.internal.JIdentityStmt
-import soot.jimple.internal.JInterfaceInvokeExpr
-import soot.jimple.internal.JInvokeStmt
-import soot.jimple.internal.JSpecialInvokeExpr
-import soot.jimple.internal.JStaticInvokeExpr
-import soot.jimple.internal.JVirtualInvokeExpr
-import soot.jimple.internal.JimpleLocal
-import soot.tagkit.ArtificialEntityTag
-import java.lang.reflect.ParameterizedType
 
 val JIdentityStmt.lines: String
     get() = tags.joinToString { "$it" }
@@ -203,7 +156,7 @@ val Type.numDimensions get() = if (this is ArrayType) numDimensions else 0
 /**
  * Invocation. Can generate multiple targets.
  *
- * @see Traverser.virtualAndInterfaceInvoke
+ * @see UtBotSymbolicEngine.virtualAndInterfaceInvoke
  */
 data class Invocation(
     val instance: ReferenceValue?,
@@ -222,7 +175,7 @@ data class Invocation(
 /**
  * Invocation target. Contains constraints to be satisfied for this instance class (related to virtual invoke).
  *
- * @see Traverser.virtualAndInterfaceInvoke
+ * @see UtBotSymbolicEngine.virtualAndInterfaceInvoke
  */
 data class InvocationTarget(
     val instance: ReferenceValue?,
@@ -245,11 +198,11 @@ data class MethodInvocationTarget(
 )
 
 /**
- * Used in the [Traverser.findLibraryTargets] to substitute common types
+ * Used in the [UtBotSymbolicEngine.findLibraryTargets] to substitute common types
  * like [Iterable] with the types that have corresponding wrappers.
  *
- * @see Traverser.findLibraryTargets
- * @see Traverser.findInvocationTargets
+ * @see UtBotSymbolicEngine.findLibraryTargets
+ * @see UtBotSymbolicEngine.findInvocationTargets
  */
 val libraryTargets: Map<String, List<String>> = mapOf(
     Iterable::class.java.name to listOf(ArrayList::class.java.name, HashSet::class.java.name),
@@ -330,7 +283,7 @@ val <R> UtMethod<R>.signature: String
 val ExecutableId.displayName: String
     get() {
         val executableName = this.name
-        val parameters = this.parameters.joinToString(separator = ", ") { it.canonicalName }
+        val parameters = this.parameters.joinToString(separator = ", ") { it.name }
         return "$executableName($parameters)"
     }
 
@@ -359,7 +312,7 @@ val Type.defaultSymValue: UtExpression
     get() = toSort().defaultValue
 
 val SootField.fieldId: FieldId
-    get() = FieldId(declaringClass.id, name)
+    get() = declaringClass.id.findFieldOrNull(name)!!
 
 val UtSort.defaultValue: UtExpression
     get() = when (this) {

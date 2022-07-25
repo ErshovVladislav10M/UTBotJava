@@ -1,5 +1,11 @@
 package org.utbot.examples.manual;
 
+import kotlin.Pair;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.utbot.common.PathUtil;
 import org.utbot.examples.assemble.DirectAccess;
 import org.utbot.examples.assemble.PrimitiveFields;
@@ -19,31 +25,30 @@ import org.utbot.examples.manual.examples.Trivial;
 import org.utbot.examples.manual.examples.customer.B;
 import org.utbot.examples.manual.examples.customer.C;
 import org.utbot.examples.manual.examples.customer.Demo9;
-import org.utbot.external.api.UtBotJavaApi;
 import org.utbot.external.api.TestMethodInfo;
+import org.utbot.external.api.UtBotJavaApi;
 import org.utbot.external.api.UtModelFactory;
 import org.utbot.framework.codegen.ForceStaticMocking;
 import org.utbot.framework.codegen.Junit4;
 import org.utbot.framework.codegen.MockitoStaticMocking;
-import org.utbot.framework.plugin.api.ClassId;
 import org.utbot.framework.plugin.api.CodegenLanguage;
 import org.utbot.framework.plugin.api.EnvironmentModels;
 import org.utbot.framework.plugin.api.MockStrategyApi;
 import org.utbot.framework.plugin.api.UtArrayModel;
 import org.utbot.framework.plugin.api.UtClassRefModel;
 import org.utbot.framework.plugin.api.UtCompositeModel;
+import org.utbot.framework.plugin.api.UtMethodTestSet;
 import org.utbot.framework.plugin.api.UtModel;
 import org.utbot.framework.plugin.api.UtNullModel;
 import org.utbot.framework.plugin.api.UtPrimitiveModel;
-import org.utbot.framework.plugin.api.UtMethodTestSet;
 import org.utbot.framework.plugin.api.util.UtContext;
 import org.utbot.framework.util.Snippet;
+import org.utbot.jcdb.api.ClassId;
+
 import java.io.File;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,16 +56,12 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import kotlin.Pair;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+
 import static org.utbot.examples.manual.PredefinedGeneratorParameters.destinationClassName;
 import static org.utbot.examples.manual.PredefinedGeneratorParameters.getMethodByName;
 import static org.utbot.external.api.UtModelFactoryKt.classIdForType;
 import static org.utbot.framework.plugin.api.MockFramework.MOCKITO;
+import static org.utbot.framework.plugin.api.util.IdUtilKt.findClass;
 import static org.utbot.framework.plugin.api.util.IdUtilKt.getIntArrayClassId;
 import static org.utbot.framework.util.TestUtilsKt.compileClassAndGetClassPath;
 import static org.utbot.framework.util.TestUtilsKt.compileClassFile;
@@ -654,7 +655,7 @@ public class UtBotJavaApiTest {
         String dependencyClassPath = getDependencyClassPath();
 
         ClassId cidPrimitiveArrays = getIntArrayClassId();
-        ClassId cidPrimitiveArraysOuter = new ClassId("[[I", cidPrimitiveArrays);
+        ClassId cidPrimitiveArraysOuter = findClass("int[][]");
         ClassId classIdArrayOfPrimitiveArraysClass = classIdForType(ArrayOfPrimitiveArrays.class);
         ClassId cidArrayOfPrimitiveArraysTest = classIdForType(ArrayOfPrimitiveArraysExample.class);
 
@@ -1329,7 +1330,7 @@ public class UtBotJavaApiTest {
         ClassId classIdOfComplexArray = classIdForType(ComplexArray.class);
         ClassId classIdOfPrimitiveFieldsClass = classIdForType(PrimitiveFields.class);
 
-        ClassId classIdOfArrayOfPrimitiveFieldsClass = new ClassId("[L" + classIdOfPrimitiveFieldsClass.getCanonicalName() + ";", classIdOfPrimitiveFieldsClass);
+        ClassId classIdOfArrayOfPrimitiveFieldsClass = findClass(classIdOfPrimitiveFieldsClass.getName() + "[]");
 
         Map<Integer, UtModel> elementsOfComplexArrayArray = new HashMap<>();
 
@@ -1361,7 +1362,7 @@ public class UtBotJavaApiTest {
 
         elementsOfComplexArrayArray.put(1, complexArrayClassModel);
 
-        ClassId classIdOfArraysOfComplexArrayClass = new ClassId("[L" + classIdOfComplexArray.getCanonicalName() + ";", classIdOfComplexArray);
+        ClassId classIdOfArraysOfComplexArrayClass = findClass( classIdOfComplexArray.getName() + "[]");
 
         UtArrayModel arrayOfComplexArrayClasses = modelFactory.produceArrayModel(
                 classIdOfArraysOfComplexArrayClass,

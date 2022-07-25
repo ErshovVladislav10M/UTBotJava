@@ -2,6 +2,7 @@
 
 package org.utbot.examples
 
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.utbot.common.ClassLocation
 import org.utbot.common.FileUtil.findPathToClassFiles
 import org.utbot.common.FileUtil.locateClass
@@ -9,9 +10,9 @@ import org.utbot.common.WorkaroundReason.HACK
 import org.utbot.common.workaround
 import org.utbot.engine.prettify
 import org.utbot.framework.UtSettings.checkSolverTimeoutMillis
-import org.utbot.framework.plugin.api.ClassId
+import org.utbot.framework.UtSettings.useFuzzing
+import org.utbot.framework.codegen.TestCodeGeneratorPipeline
 import org.utbot.framework.plugin.api.CodegenLanguage
-import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.MockStrategyApi
 import org.utbot.framework.plugin.api.MockStrategyApi.NO_MOCKS
 import org.utbot.framework.plugin.api.UtAssembleModel
@@ -20,24 +21,24 @@ import org.utbot.framework.plugin.api.UtDirectSetFieldModel
 import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionResult
 import org.utbot.framework.plugin.api.UtMethod
-import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtMethodTestSet
+import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.exceptionOrNull
 import org.utbot.framework.plugin.api.getOrThrow
+import org.utbot.framework.plugin.api.type
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.defaultValueModel
 import org.utbot.framework.plugin.api.util.executableId
+import org.utbot.framework.plugin.api.util.findField
 import org.utbot.framework.plugin.api.util.withUtContext
+import org.utbot.framework.util.Conflict
+import org.utbot.jcdb.api.FieldId
 import java.nio.file.Path
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KFunction1
 import kotlin.reflect.KFunction2
 import kotlin.reflect.KFunction3
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.utbot.framework.UtSettings.useFuzzing
-import org.utbot.framework.codegen.TestCodeGeneratorPipeline
-import org.utbot.framework.util.Conflict
 
 internal abstract class UtModelTestCaseChecker(
     testClass: KClass<*>,
@@ -174,8 +175,8 @@ internal abstract class UtModelTestCaseChecker(
     /**
      * Finds field model in [UtCompositeModel] and [UtAssembleModel]. For assemble model supports direct field access only.
      */
-    protected fun UtModel.findField(fieldName: String, declaringClass: ClassId = this.classId): UtModel =
-        findField(FieldId(declaringClass, fieldName))
+    protected fun UtModel.findField(fieldName: String): UtModel =
+        findField(classId.findField(fieldName))
 
     /**
      * Finds field model in [UtCompositeModel] and [UtAssembleModel]. For assemble model supports direct field access only.

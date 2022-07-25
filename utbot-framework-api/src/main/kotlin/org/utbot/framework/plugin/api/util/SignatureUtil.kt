@@ -1,7 +1,9 @@
 package org.utbot.framework.plugin.api.util
 
-import org.utbot.framework.plugin.api.ClassId
+import org.objectweb.asm.Type
 import org.utbot.framework.plugin.api.ExecutableId
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.isPrimitive
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
@@ -13,32 +15,14 @@ val KCallable<*>.signature: String
 
 val Executable.signature: String
     get() = when (this) {
-        is Method -> executableId.signature
-        is Constructor<*> -> executableId.signature
+        is Method -> name + Type.getMethodDescriptor(this)
+        is Constructor<*> -> "<init>" + Type.getConstructorDescriptor(this)
         else -> error("Unknown Executable type: ${this::class}")
     }
 
-/**
- * Makes Java-like signature for constructor. "Like" because it uses "<init>" instead of class name.
- */
-fun Constructor<*>.bytecodeSignature() = buildString {
-    append("<init>(")
-    parameterTypes.forEach { append(it.bytecodeSignature()) }
-    append(")V")
+fun Class<*>.bytecodeSignature(): String {
+    return Type.getType(this).descriptor
 }
-
-/**
- * Makes Java signature for Java Class. Uses hack with [java.lang.reflect.Array.newInstance]
- */
-//fun Class<*>.bytecodeSignature(): String = when {
-//    this === Void.TYPE -> "V"
-//    else -> newInstance(this, 0).toString().let {
-//        it.substring(1, it.indexOf('@')).replace(".", "/")
-//    }
-//}
-
-
-fun Class<*>.bytecodeSignature(): String = id.jvmName
 
 /**
  * Method [Class.getName] works differently for arrays than for other types.
@@ -84,7 +68,7 @@ fun Class<*>.singleMethodOrNull(signature: String): Method? =
  * @see Class.getDeclaredConstructors
  */
 fun Class<*>.singleConstructorOrNull(signature: String): Constructor<*>? =
-    declaredConstructors.firstOrNull { it.bytecodeSignature() == signature }
+    declaredConstructors.firstOrNull { it.signature == signature }
 
 
 /**
@@ -96,7 +80,7 @@ fun Class<*>.singleExecutableId(signature: String): ExecutableId =
 /**
  * Finds callable for class method by signature. Supports constructors, static and non-static methods.
  */
-fun Class<*>.singleExecutableIdOrNull(signature: String) = if (isConstructorSignature(signature)) {
+fun Class<*>.singleExecutableIdOrNull(signature: String): ExecutableId? = if (isConstructorSignature(signature)) {
     singleConstructorOrNull(signature)?.executableId
 } else {
     singleMethodOrNull(signature)?.executableId

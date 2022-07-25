@@ -22,13 +22,14 @@ import org.utbot.framework.codegen.RuntimeExceptionTestsBehaviour
 import org.utbot.framework.codegen.StaticsMocking
 import org.utbot.framework.codegen.TestFramework
 import org.utbot.framework.codegen.TestNg
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.CodeGenerationSettingItem
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.MockStrategyApi
 import org.utbot.framework.plugin.api.TreatOverflowAsError
+import org.utbot.framework.plugin.api.util.findClass
 import org.utbot.intellij.plugin.models.GenerateTestsModel
+import org.utbot.jcdb.api.ClassId
 import java.util.concurrent.CompletableFuture
 import kotlin.reflect.KClass
 
@@ -164,7 +165,7 @@ class Settings(val project: Project) : PersistentStateComponent<Settings.State> 
     }
 
     // these classes are all ref types so we can use only names here
-    fun chosenClassesToMockAlways(): Set<ClassId> = state.classesToMockAlways.mapTo(mutableSetOf()) { ClassId(it) }
+    fun chosenClassesToMockAlways(): Set<ClassId> = state.classesToMockAlways.mapTo(mutableSetOf()) { findClass(it) }
 
     fun setProviderByLoader(loader: KClass<*>, provider: CodeGenerationSettingItem) =
         when (loader) {

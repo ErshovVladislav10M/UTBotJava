@@ -1,13 +1,14 @@
 package org.utbot.framework.concrete
 
-import org.utbot.framework.plugin.api.ConstructorId
-import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtStatementModel
+import org.utbot.framework.plugin.api.util.asExecutable
+import org.utbot.framework.plugin.api.util.asExecutableMethod
 import org.utbot.framework.plugin.api.util.booleanClassId
+import org.utbot.framework.plugin.api.util.findConstructor
+import org.utbot.framework.plugin.api.util.findMethod
 import org.utbot.framework.plugin.api.util.id
-import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.framework.plugin.api.util.objectClassId
 import org.utbot.framework.util.valueToClassId
 
@@ -29,12 +30,12 @@ internal class CollectionConstructor : UtAssembleModelConstructorBase() {
 
         instantiationChain += UtExecutableCallModel(
             instance = null,
-            ConstructorId(classId, emptyList()),
+            classId.findConstructor().asExecutable(),
             emptyList(),
             this
         )
 
-        val addMethodId = MethodId(classId, "add", booleanClassId, listOf(objectClassId))
+        val addMethodId = classId.findMethod("add", booleanClassId, listOf(objectClassId)).asExecutableMethod()
 
         modificationChain += models.map { UtExecutableCallModel(this, addMethodId, listOf(it)) }
     }
@@ -55,12 +56,12 @@ internal class MapConstructor : UtAssembleModelConstructorBase() {
 
         instantiationChain += UtExecutableCallModel(
             instance = null,
-            ConstructorId(classId, emptyList()),
+            classId.findConstructor().asExecutable(),
             emptyList(),
             this
         )
 
-        val putMethodId = MethodId(classId, "put", objectClassId, listOf(objectClassId, objectClassId))
+        val putMethodId = classId.findMethod("put", objectClassId, listOf(objectClassId, objectClassId)).asExecutableMethod()
 
         modificationChain += keyToValueModels.map { (key, value) ->
             UtExecutableCallModel(this, putMethodId, listOf(key, value))

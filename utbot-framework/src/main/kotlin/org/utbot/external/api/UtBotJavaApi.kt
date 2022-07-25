@@ -11,20 +11,18 @@ import org.utbot.framework.codegen.model.CodeGenerator
 import org.utbot.framework.concrete.UtConcreteExecutionData
 import org.utbot.framework.concrete.UtConcreteExecutionResult
 import org.utbot.framework.concrete.UtExecutionInstrumentation
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.MockStrategyApi
 import org.utbot.framework.plugin.api.TestCaseGenerator
-import org.utbot.framework.plugin.api.UtSymbolicExecution
 import org.utbot.framework.plugin.api.UtMethod
-import org.utbot.framework.plugin.api.UtPrimitiveModel
 import org.utbot.framework.plugin.api.UtMethodTestSet
+import org.utbot.framework.plugin.api.UtPrimitiveModel
+import org.utbot.framework.plugin.api.UtSymbolicExecution
+import org.utbot.framework.plugin.api.reflection
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.id
-import org.utbot.framework.plugin.api.util.isPrimitive
 import org.utbot.framework.plugin.api.util.isPrimitiveWrapper
-import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.framework.plugin.api.util.primitiveByWrapper
 import org.utbot.framework.plugin.api.util.stringClassId
 import org.utbot.framework.plugin.api.util.withUtContext
@@ -34,6 +32,8 @@ import org.utbot.fuzzer.ModelProvider
 import org.utbot.fuzzer.ModelProvider.Companion.yieldValue
 import org.utbot.instrumentation.ConcreteExecutor
 import org.utbot.instrumentation.execute
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.isPrimitive
 import java.lang.reflect.Method
 import kotlin.reflect.KCallable
 import kotlin.reflect.KClass
@@ -153,7 +153,7 @@ object UtBotJavaApi {
         fun createPrimitiveModels(supplier: CustomFuzzerValueSupplier, classId: ClassId): Sequence<UtPrimitiveModel> =
             supplier
                 .takeIf { classId.isPrimitive || classId.isPrimitiveWrapper || classId == stringClassId }
-                ?.get(classId.jClass)
+                ?.get(with(reflection) { classId.javaClass })
                 ?.asSequence()
                 ?.filter {
                     val valueClassId = it.javaClass.id

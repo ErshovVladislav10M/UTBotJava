@@ -43,7 +43,7 @@ fun assemble(model: UtPrimitiveModel): UtAssembleModel {
     return UtAssembleModel(
         id = null,
         classId = assembledModelType,
-        modelName = modelType.canonicalName,
+        modelName = modelType.name,
         instantiationChain = listOf(constructorCallModel),
         modificationsChain = emptyList(),
     )

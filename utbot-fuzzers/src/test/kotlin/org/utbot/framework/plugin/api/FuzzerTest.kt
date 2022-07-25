@@ -1,6 +1,8 @@
 package org.utbot.framework.plugin.api
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.assertThrows
@@ -24,7 +26,7 @@ import org.utbot.fuzzer.providers.ConstantsModelProvider
 import org.utbot.fuzzer.providers.NullModelProvider
 import org.utbot.fuzzer.providers.PrimitiveDefaultsModelProvider
 import org.utbot.fuzzer.providers.PrimitiveWrapperModelProvider.fuzzed
-import java.lang.IllegalArgumentException
+import org.utbot.jcdb.api.ClassId
 import java.util.concurrent.TimeUnit
 
 class FuzzerTest {
@@ -133,7 +135,7 @@ class FuzzerTest {
     }
 
     private fun defaultTypes(includeStringId: Boolean = false): List<ClassId> {
-        val result = mutableListOf(
+        val result = mutableListOf<ClassId>(
             booleanClassId,
             byteClassId,
             charClassId,

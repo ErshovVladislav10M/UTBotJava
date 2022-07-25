@@ -1,5 +1,7 @@
 package org.utbot.engine
 
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 import org.utbot.common.WorkaroundReason.HACK
 import org.utbot.common.WorkaroundReason.MAKE_SYMBOLIC
 import org.utbot.common.WorkaroundReason.RUN_CONCRETE
@@ -25,15 +27,13 @@ import org.utbot.engine.pc.mkLong
 import org.utbot.engine.pc.mkShort
 import org.utbot.engine.pc.select
 import org.utbot.engine.pc.store
-import org.utbot.engine.util.statics.concrete.isEnumValuesFieldName
 import org.utbot.engine.symbolic.asHardConstraint
+import org.utbot.engine.util.statics.concrete.isEnumValuesFieldName
 import org.utbot.engine.z3.intValue
 import org.utbot.engine.z3.value
 import org.utbot.framework.assemble.AssembleModelGenerator
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.ExecutableId
-import org.utbot.framework.plugin.api.FieldId
-import org.utbot.framework.plugin.api.MethodId
+import org.utbot.framework.plugin.api.SYMBOLIC_NULL_ADDR
 import org.utbot.framework.plugin.api.UtArrayModel
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtClassRefModel
@@ -52,27 +52,23 @@ import org.utbot.framework.plugin.api.UtNewInstanceInstrumentation
 import org.utbot.framework.plugin.api.UtNullModel
 import org.utbot.framework.plugin.api.UtOverflowFailure
 import org.utbot.framework.plugin.api.UtPrimitiveModel
+import org.utbot.framework.plugin.api.UtSandboxFailure
 import org.utbot.framework.plugin.api.UtStaticMethodInstrumentation
 import org.utbot.framework.plugin.api.UtVoidModel
 import org.utbot.framework.plugin.api.classId
 import org.utbot.framework.plugin.api.id
-import org.utbot.framework.plugin.api.util.constructorId
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.util.asExecutable
 import org.utbot.framework.plugin.api.util.defaultValueModel
+import org.utbot.framework.plugin.api.util.findConstructor
+import org.utbot.framework.plugin.api.util.findFieldOrNull
 import org.utbot.framework.plugin.api.util.id
-import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.framework.plugin.api.util.primitiveByWrapper
 import org.utbot.framework.plugin.api.util.utContext
 import org.utbot.framework.util.nextModelName
-import java.awt.color.ICC_ProfileRGB
-import java.io.PrintStream
-import java.security.AccessControlContext
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.max
-import kotlin.math.min
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentSetOf
-import org.utbot.framework.plugin.api.SYMBOLIC_NULL_ADDR
-import org.utbot.framework.plugin.api.UtSandboxFailure
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.FieldId
+import org.utbot.jcdb.api.MethodId
 import soot.ArrayType
 import soot.BooleanType
 import soot.ByteType
@@ -89,7 +85,13 @@ import soot.SootClass
 import soot.SootField
 import soot.Type
 import soot.VoidType
+import java.awt.color.ICC_ProfileRGB
+import java.io.PrintStream
+import java.security.AccessControlContext
 import java.security.AccessControlException
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.max
+import kotlin.math.min
 
 // hack
 const val MAX_LIST_SIZE = 10
@@ -541,8 +543,8 @@ class Resolver(
             val primitiveClassId = primitiveByWrapper[classId]!!
             val fields = collectFieldModels(UtAddrExpression(mkInt(addr)), actualType)
             val baseModelName = primitiveClassId.name
-            val constructorId = constructorId(classId, primitiveClassId)
-            val valueModel = fields[FieldId(classId, "value")] ?: primitiveClassId.defaultValueModel()
+            val constructorId = classId.findConstructor(primitiveClassId).asExecutable()
+            val valueModel = fields[classId.findFieldOrNull("value")] ?: primitiveClassId.defaultValueModel()
             val instantiationChain = mutableListOf<UtExecutableCallModel>()
             UtAssembleModel(addr, classId, nextModelName(baseModelName), instantiationChain)
                 .apply {
@@ -622,13 +624,13 @@ class Resolver(
         return model
     }
 
-    private fun classRefByName(type: Type, numDimensions: Int): Class<*> {
+    private fun classRefByName(type: Type, numDimensions: Int): Class<*> = with(reflection) {
         require(numDimensions >= 0) {
             "Number of dimensions for ClassRef should be non-negative, but $numDimensions found"
         }
 
         val constructedType = if (numDimensions == 0) type else type.makeArrayType(numDimensions)
-        return constructedType.classId.jClass
+        return constructedType.classId.javaClass
     }
 
     private fun constructEnum(addr: Address, type: RefType, clazz: Class<*>): UtEnumConstantModel {

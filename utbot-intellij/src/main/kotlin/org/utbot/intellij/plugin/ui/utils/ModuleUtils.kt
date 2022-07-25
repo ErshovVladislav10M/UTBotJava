@@ -1,12 +1,6 @@
 package org.utbot.intellij.plugin.ui.utils
 
 import com.android.tools.idea.gradle.project.GradleProjectInfo
-import org.utbot.common.PathUtil.toPath
-import org.utbot.common.WorkaroundReason
-import org.utbot.common.workaround
-import org.utbot.framework.plugin.api.CodegenLanguage
-import org.utbot.intellij.plugin.ui.CommonErrorNotifier
-import org.utbot.intellij.plugin.ui.UnsupportedJdkNotifier
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
@@ -25,14 +19,19 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.FakeVirtualFile
 import com.intellij.util.PathUtil.getParentPath
-import java.nio.file.Path
 import mu.KotlinLogging
 import org.jetbrains.android.sdk.AndroidSdkType
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType
 import org.jetbrains.kotlin.config.KotlinFacetSettingsProvider
 import org.jetbrains.kotlin.config.TestResourceKotlinRootType
-import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import org.jetbrains.kotlin.platform.TargetPlatformVersion
+import org.utbot.common.PathUtil.toPath
+import org.utbot.common.WorkaroundReason
+import org.utbot.common.workaround
+import org.utbot.framework.plugin.api.CodegenLanguage
+import org.utbot.intellij.plugin.ui.CommonErrorNotifier
+import org.utbot.intellij.plugin.ui.UnsupportedJdkNotifier
+import java.nio.file.Path
 
 private val logger = KotlinLogging.logger {}
 
@@ -87,10 +86,6 @@ fun Module.getOrCreateSarifReportsPath(testSourceRoot: VirtualFile?): Path {
  * Find test modules by current source module.
  */
 fun Module.testModules(project: Project): List<Module> {
-    if (project.isGradle()) {
-        return project.allModules()
-    }
-
     var testModules = findPotentialModulesForTests(project, this)
     val testRootUrls = testModules.flatMap { it.suitableTestSourceRoots() }
 

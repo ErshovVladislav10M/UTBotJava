@@ -18,24 +18,24 @@ import org.utbot.engine.pc.mkInt
 import org.utbot.engine.pc.select
 import org.utbot.engine.pc.store
 import org.utbot.engine.symbolic.asHardConstraint
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.UtArrayModel
 import org.utbot.framework.plugin.api.UtCompositeModel
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtNullModel
 import org.utbot.framework.plugin.api.UtPrimitiveModel
 import org.utbot.framework.plugin.api.getIdOrThrow
-import org.utbot.framework.plugin.api.idOrNull
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.objectArrayClassId
 import org.utbot.framework.plugin.api.util.objectClassId
+import org.utbot.jcdb.api.ClassId
 import soot.ArrayType
 import soot.Scene
 import soot.SootClass
 import soot.SootField
 import soot.SootMethod
 
-val rangeModifiableArrayId: ClassId = RangeModifiableUnlimitedArray::class.id
+
+val rangeModifiableArrayId: ClassId get() = RangeModifiableUnlimitedArray::class.id
 
 class RangeModifiableUnlimitedArrayWrapper : WrapperInterface {
     override fun Traverser.invoke(

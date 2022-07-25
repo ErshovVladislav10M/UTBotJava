@@ -1,18 +1,18 @@
 package org.utbot.examples.enums
 
-import org.utbot.examples.UtValueTestCaseChecker
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Test
 import org.utbot.examples.DoNotCalculate
+import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.enums.ClassWithEnum.StatusEnum.ERROR
 import org.utbot.examples.enums.ClassWithEnum.StatusEnum.READY
 import org.utbot.examples.eq
 import org.utbot.examples.isException
 import org.utbot.examples.withPushingStateFromPathSelectorForConcrete
 import org.utbot.examples.withoutConcrete
-import org.utbot.framework.plugin.api.FieldId
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.util.findField
 import org.utbot.framework.plugin.api.util.id
-import org.junit.jupiter.api.Disabled
-import org.junit.jupiter.api.Test
-import org.utbot.framework.plugin.api.util.jField
 
 class ClassWithEnumTest : UtValueTestCaseChecker(testClass = ClassWithEnum::class) {
     @Test
@@ -105,15 +105,15 @@ class ClassWithEnumTest : UtValueTestCaseChecker(testClass = ClassWithEnum::clas
     }
 
     @Test
-    fun testChangingStaticWithEnumInit() {
+    fun testChangingStaticWithEnumInit() = with(reflection) {
         checkThisAndStaticsAfter(
             ClassWithEnum::changingStaticWithEnumInit,
             eq(1),
             { t, staticsAfter, r ->
                 // for some reasons x is inaccessible
-                val x = FieldId(t.javaClass.id, "x").jField.get(t) as Int
+                val x = t.javaClass.id.findField("x").javaField.get(t) as Int
 
-                val y = staticsAfter[FieldId(ClassWithEnum.ClassWithStaticField::class.id, "y")]!!.value as Int
+                val y = staticsAfter[ClassWithEnum.ClassWithStaticField::class.id.findField("y")]!!.value as Int
 
                 val areStaticsCorrect = x == 1 && y == 11
                 areStaticsCorrect && r == true

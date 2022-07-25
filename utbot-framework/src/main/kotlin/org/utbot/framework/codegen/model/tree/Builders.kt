@@ -3,8 +3,8 @@ package org.utbot.framework.codegen.model.tree
 import org.utbot.framework.codegen.Import
 import org.utbot.framework.codegen.model.constructor.tree.TestsGenerationReport
 import org.utbot.framework.codegen.model.util.CgExceptionHandler
-import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.util.voidClassId
+import org.utbot.jcdb.api.ClassId
 
 interface CgBuilder<T : CgElement> {
     fun build(): T
@@ -72,7 +72,7 @@ class CgTestMethodBuilder : CgMethodBuilder<CgTestMethod> {
 
     override fun build() = CgTestMethod(
         name,
-        returnType,
+        returnType.type(false),
         parameters,
         statements,
         exceptions,
@@ -108,7 +108,7 @@ class CgParameterizedTestDataProviderBuilder : CgMethodBuilder<CgParameterizedTe
     override val exceptions: MutableSet<ClassId> = mutableSetOf()
     override var documentation: CgDocumentationComment = CgDocumentationComment(emptyList())
 
-    override fun build() = CgParameterizedTestDataProviderMethod(name, statements, returnType, annotations, exceptions)
+    override fun build() = CgParameterizedTestDataProviderMethod(name, statements, returnType.type(), annotations, exceptions)
 }
 
 fun buildParameterizedTestDataProviderMethod(
@@ -118,7 +118,7 @@ fun buildParameterizedTestDataProviderMethod(
 // Variable declaration
 
 class CgDeclarationBuilder : CgBuilder<CgDeclaration> {
-    lateinit var variableType: ClassId
+    lateinit var variableType: CgClassType
     lateinit var variableName: String
     var initializer: CgExpression? = null
     var isMutable: Boolean = false

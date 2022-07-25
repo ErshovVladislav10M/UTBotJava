@@ -1,12 +1,13 @@
 package org.utbot.framework.modifications
 
-import org.utbot.framework.plugin.api.ClassId
-import org.utbot.framework.plugin.api.ConstructorId
-import org.utbot.framework.plugin.api.FieldId
+import org.utbot.framework.plugin.api.ConstructorExecutableId
 import org.utbot.framework.plugin.api.id
+import org.utbot.framework.plugin.api.reflection
+import org.utbot.framework.plugin.api.util.findField
 import org.utbot.framework.plugin.api.util.isArray
 import org.utbot.framework.plugin.api.util.isRefType
-import org.utbot.framework.plugin.api.util.jClass
+import org.utbot.jcdb.api.ClassId
+import org.utbot.jcdb.api.FieldId
 import soot.Scene
 import soot.SootMethod
 import soot.Type
@@ -31,7 +32,7 @@ import soot.jimple.internal.JimpleLocal
  * @param affectedFields describes all fields affected in constructor
  * */
 data class ConstructorAssembleInfo(
-    val constructorId: ConstructorId,
+    val constructorId: ConstructorExecutableId,
     val params: Map<Int, FieldId>,
     val setFields: Set<FieldId>,
     val affectedFields: Set<FieldId>
@@ -47,7 +48,7 @@ class ConstructorAnalyzer {
      * Verifies that [constructorId] can be used in assemble models.
      * Analyses Soot representation of constructor for that.
      */
-    fun isAppropriate(constructorId: ConstructorId): Boolean {
+    fun isAppropriate(constructorId: ConstructorExecutableId): Boolean {
         val sootConstructor = sootConstructor(constructorId) ?: return false
         return isAppropriate(sootConstructor)
     }
@@ -55,7 +56,7 @@ class ConstructorAnalyzer {
     /**
      * Retrieves information about [constructorId] params and modified fields from Soot.
      */
-    fun analyze(constructorId: ConstructorId): ConstructorAssembleInfo {
+    fun analyze(constructorId: ConstructorExecutableId): ConstructorAssembleInfo {
         val setFields = mutableSetOf<FieldId>()
         val affectedFields = mutableSetOf<FieldId>()
 
@@ -152,7 +153,7 @@ class ConstructorAnalyzer {
         for (assn in assignments(jimpleBody)) {
             val leftPart = assn.leftOp as? JInstanceFieldRef ?: continue
 
-            val fieldId = FieldId(leftPart.field.declaringClass.id, leftPart.field.name)
+            val fieldId = leftPart.field.declaringClass.id.findField(leftPart.field.name)
             if (assn.isPrimitive()) {
                 setFields.add(fieldId)
             } else {
@@ -174,7 +175,7 @@ class ConstructorAnalyzer {
 
             val field = (assn.leftOp as JInstanceFieldRef).field
             val parameterIndex = jimpleBody.locals.indexOfFirst { it.name == jimpleLocal.name }
-            indexedFields[parameterIndex - 1] = FieldId(field.declaringClass.id, field.name)
+            indexedFields[parameterIndex - 1] = field.declaringClass.id.findField(field.name)
         }
 
         return indexedFields
@@ -188,9 +189,9 @@ class ConstructorAnalyzer {
         .filter { it.leftOp is JimpleLocal && it.rightOp is ParameterRef }
         .associate { it.leftOp as JimpleLocal to (it.rightOp as ParameterRef).index }
 
-    private val sootConstructorCache = mutableMapOf<ConstructorId, SootMethod>()
+    private val sootConstructorCache = mutableMapOf<ConstructorExecutableId, SootMethod>()
 
-    private fun sootConstructor(constructorId: ConstructorId): SootMethod? {
+    private fun sootConstructor(constructorId: ConstructorExecutableId): SootMethod? {
         if (constructorId in sootConstructorCache) {
             return sootConstructorCache[constructorId]
         }
@@ -227,7 +228,7 @@ class ConstructorAnalyzer {
             .filterIsInstance<JInvokeStmt>()
             .map { it.invokeExpr }
 
-    private fun sameParameterTypes(sootMethod: SootMethod, constructorId: ConstructorId): Boolean {
+    private fun sameParameterTypes(sootMethod: SootMethod, constructorId: ConstructorExecutableId): Boolean {
         val sootConstructorTypes = sootMethod.parameterTypes
         val constructorTypes = constructorId.parameters.map { getParameterType(it) }
 
@@ -248,14 +249,15 @@ class ConstructorAnalyzer {
      * Note: we return null if restore process failed. Possibly we need to
      * enlarge a set of cases types we can deal with in the future.
      */
-    private fun getParameterType(type: ClassId): Type? =
+    private fun getParameterType(type: ClassId): Type? = with(reflection) {
         try {
             when {
                 type.isRefType -> scene.getRefType(type.name)
-                type.isArray -> scene.getType(type.jClass.canonicalName)
-                else ->  scene.getType(type.name)
+                type.isArray -> scene.getType(type.javaClass.canonicalName)
+                else -> scene.getType(type.name)
             }
         } catch (e: Exception) {
             null
         }
+    }
 }
