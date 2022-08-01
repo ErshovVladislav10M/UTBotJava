@@ -2881,6 +2881,16 @@ inline fun <reified T> withUsingReflectionForMaximizingCoverage(maximizeCoverage
     }
 }
 
+inline fun <reified T> withPathSelectorStepsLimit(stepsLimit: Int, block: () -> T): T {
+    val prev = UtSettings.pathSelectorStepsLimit
+    UtSettings.pathSelectorStepsLimit = stepsLimit
+    try {
+        return block()
+    } finally {
+        UtSettings.pathSelectorStepsLimit = prev
+    }
+}
+
 /**
  * Run [block] with disabled sandbox in the concrete executor
  */
