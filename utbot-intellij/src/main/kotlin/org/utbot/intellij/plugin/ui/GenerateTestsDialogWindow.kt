@@ -4,17 +4,6 @@ package org.utbot.intellij.plugin.ui
 
 import com.intellij.codeInsight.hint.HintUtil
 import com.intellij.icons.AllIcons
-import org.utbot.common.PathUtil.toPath
-import org.utbot.framework.UtSettings
-import org.utbot.framework.codegen.model.util.MOCKITO_EXTENSIONS_FILE_CONTENT
-import org.utbot.framework.codegen.model.util.MOCKITO_EXTENSIONS_STORAGE
-import org.utbot.framework.codegen.model.util.MOCKITO_MOCKMAKER_FILE_NAME
-import org.utbot.framework.plugin.api.CodeGenerationSettingItem
-import org.utbot.framework.plugin.api.CodegenLanguage
-import org.utbot.framework.plugin.api.MockFramework
-import org.utbot.framework.plugin.api.MockFramework.MOCKITO
-import org.utbot.framework.plugin.api.MockStrategyApi
-import org.utbot.framework.plugin.api.TreatOverflowAsError
 import com.intellij.ide.impl.ProjectNewWindowDoNotAskOption
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.command.WriteCommandAction
@@ -51,6 +40,7 @@ import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.SyntheticElement
+import com.intellij.psi.PsiModifier
 import com.intellij.refactoring.PackageWrapper
 import com.intellij.refactoring.ui.MemberSelectionTable
 import com.intellij.refactoring.ui.PackageNameReferenceEditorCombo
@@ -86,12 +76,46 @@ import com.intellij.util.ui.JBUI.size
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
 import org.jetbrains.concurrency.Promise
+import org.jetbrains.concurrency.thenRun
+import org.jetbrains.kotlin.asJava.classes.KtUltraLightClass
+import org.utbot.common.filterWhen
+import org.utbot.common.PathUtil.toPath
+import org.utbot.framework.UtSettings
+import org.utbot.framework.codegen.ForceStaticMocking
+import org.utbot.framework.codegen.Junit4
+import org.utbot.framework.codegen.Junit5
+import org.utbot.framework.codegen.NoStaticMocking
+import org.utbot.framework.codegen.ParametrizedTestSource
+import org.utbot.framework.codegen.StaticsMocking
+import org.utbot.framework.codegen.TestFramework
+import org.utbot.framework.codegen.TestNg
+import org.utbot.framework.codegen.model.util.MOCKITO_EXTENSIONS_FILE_CONTENT
+import org.utbot.framework.codegen.model.util.MOCKITO_EXTENSIONS_STORAGE
+import org.utbot.framework.codegen.model.util.MOCKITO_MOCKMAKER_FILE_NAME
+import org.utbot.framework.plugin.api.CodeGenerationSettingItem
+import org.utbot.framework.plugin.api.CodegenLanguage
+import org.utbot.framework.plugin.api.MockFramework
+import org.utbot.framework.plugin.api.MockFramework.MOCKITO
+import org.utbot.framework.plugin.api.MockStrategyApi
+import org.utbot.framework.plugin.api.TreatOverflowAsError
+import org.utbot.framework.util.Conflict
 import org.utbot.intellij.plugin.models.GenerateTestsModel
 import org.utbot.intellij.plugin.models.jUnit4LibraryDescriptor
 import org.utbot.intellij.plugin.models.jUnit5LibraryDescriptor
 import org.utbot.intellij.plugin.models.mockitoCoreLibraryDescriptor
 import org.utbot.intellij.plugin.models.packageName
 import org.utbot.intellij.plugin.models.testNgLibraryDescriptor
+import org.utbot.intellij.plugin.settings.Settings
+import org.utbot.intellij.plugin.ui.components.TestFolderComboWithBrowseButton
+import org.utbot.intellij.plugin.ui.utils.LibrarySearchScope
+import org.utbot.intellij.plugin.ui.utils.addSourceRootIfAbsent
+import org.utbot.intellij.plugin.ui.utils.allLibraries
+import org.utbot.intellij.plugin.ui.utils.findFrameworkLibrary
+import org.utbot.intellij.plugin.ui.utils.getOrCreateTestResourcesPath
+import org.utbot.intellij.plugin.ui.utils.kotlinTargetPlatform
+import org.utbot.intellij.plugin.ui.utils.parseVersion
+import org.utbot.intellij.plugin.ui.utils.testResourceRootTypes
+import org.utbot.intellij.plugin.ui.utils.testRootType
 import org.utbot.intellij.plugin.util.AndroidApiHelper
 import java.awt.BorderLayout
 import java.awt.Color
@@ -106,13 +130,7 @@ import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.JPanel
 import kotlin.streams.toList
-import org.jetbrains.concurrency.thenRun
-import org.utbot.common.filterWhen
-import org.utbot.framework.codegen.*
-import org.utbot.framework.util.Conflict
-import org.utbot.intellij.plugin.settings.Settings
-import org.utbot.intellij.plugin.ui.components.TestFolderComboWithBrowseButton
-import org.utbot.intellij.plugin.ui.utils.*
+import org.utbot.intellij.plugin.util.isAbstract
 
 private const val RECENTS_KEY = "org.utbot.recents"
 
@@ -170,6 +188,16 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
     init {
         title = "Generate tests with UtBot"
         setResizable(false)
+
+        TestFramework.allItems.forEach {
+            it.isInstalled = findFrameworkLibrary(model.project, model.testModule, it) != null
+        }
+        MockFramework.allItems.forEach {
+            it.isInstalled = findFrameworkLibrary(model.project, model.testModule, it) != null
+        }
+        StaticsMocking.allItems.forEach {
+            it.isConfigured = staticsMockingConfigured()
+        }
 
         // Configure notification urls callbacks
         TestsReportNotifier.urlOpeningListener.callbacks[TestReportUrlOpeningListener.mockitoSuffix]?.plusAssign {
@@ -346,6 +374,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
         if (srcClasses.size == 1) {
             items = TestIntegrationUtils.extractClassMethods(srcClasses.single(), false)
                 .filterWhen(UtSettings.skipTestGenerationForSyntheticMethods) { it.member !is SyntheticElement }
+                .filterNot { it.isAbstract }
             updateMethodsTable(items)
         } else {
             items = srcClasses.map { MemberInfo(it) }
@@ -420,7 +449,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
             .toSet()
 
         val selectedMethods = selectedMembers.filter { it.member is PsiMethod }.toSet()
-        model.selectedMethods = if (selectedMethods.isEmpty()) null else selectedMethods
+        model.selectedMethods = if (selectedMethods.any()) selectedMethods else null
 
         model.testFramework = testFrameworks.item
         model.mockStrategy = mockStrategies.item
@@ -543,7 +572,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
         try {
             val contentEntry = modifiableModel.contentEntries
                 .filterNot { it.file == null }
-                .firstOrNull { VfsUtil.isAncestor(it.file!!, testSourceRoot, true) }
+                .firstOrNull { VfsUtil.isAncestor(it.file!!, testSourceRoot, false) }
                 ?: return false
 
             contentEntry.addSourceRootIfAbsent(
@@ -567,7 +596,6 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
         cbSpecifyTestPackage.isEnabled = model.srcClasses.all { cl -> cl.packageName.isNotEmpty() }
 
         val settings = model.project.service<Settings>()
-        codegenLanguages.item = settings.codegenLanguage
         mockStrategies.item = settings.mockStrategy
         staticsMocking.item = settings.staticsMocking
         parametrizedTestSources.item = settings.parametrizedTestSource
@@ -576,15 +604,18 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
         mockStrategies.isEnabled = areMocksSupported
         staticsMocking.isEnabled = areMocksSupported && mockStrategies.item != MockStrategyApi.NO_MOCKS
 
-        //We do not support parameterized tests for JUnit4
+        codegenLanguages.item =
+            if (model.srcClasses.all { it is KtUltraLightClass }) CodegenLanguage.KOTLIN else CodegenLanguage.JAVA
+
+        val installedTestFramework = TestFramework.allItems.singleOrNull { it.isInstalled }
         currentFrameworkItem = when (parametrizedTestSources.item) {
-            ParametrizedTestSource.DO_NOT_PARAMETRIZE -> settings.testFramework
-            ParametrizedTestSource.PARAMETRIZE ->
-                if (settings.testFramework == Junit4) TestFramework.parametrizedDefaultItem else settings.testFramework
+            ParametrizedTestSource.DO_NOT_PARAMETRIZE -> installedTestFramework ?: settings.testFramework
+            ParametrizedTestSource.PARAMETRIZE -> installedTestFramework
+                ?: if (settings.testFramework != Junit4) settings.testFramework else TestFramework.parametrizedDefaultItem
         }
 
         updateTestFrameworksList(settings.parametrizedTestSource)
-        updateParametrizationVisibility(settings.testFramework)
+        updateParametrizationEnabled(currentFrameworkItem)
 
         updateMockStrategyList()
         updateStaticMockingStrategyList()
@@ -631,7 +662,6 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
             Junit4 -> jUnit4LibraryDescriptor(versionInProject)
             Junit5 -> jUnit5LibraryDescriptor(versionInProject)
             TestNg -> testNgLibraryDescriptor(versionInProject)
-            Mocha -> throw UnsupportedOperationException()
         }
 
         selectedTestFramework.isInstalled = true
@@ -800,7 +830,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
             val item = comboBox.item as TestFramework
 
             currentFrameworkItem = item
-            updateParametrizationVisibility(currentFrameworkItem)
+            updateParametrizationEnabled(currentFrameworkItem)
         }
 
         parametrizedTestSources.addActionListener { event ->
@@ -850,10 +880,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
             ParametrizedTestSource.DO_NOT_PARAMETRIZE -> TestFramework.defaultItem
             ParametrizedTestSource.PARAMETRIZE -> TestFramework.parametrizedDefaultItem
         }
-        enabledTestFrameworks.forEach {
-            it.isInstalled = findFrameworkLibrary(model.project, model.testModule, it) != null
-            if (it.isInstalled && !defaultItem.isInstalled) defaultItem = it
-        }
+        enabledTestFrameworks.forEach { if (it.isInstalled && !defaultItem.isInstalled) defaultItem = it }
 
         testFrameworks.model = DefaultComboBoxModel(enabledTestFrameworks.toTypedArray())
         testFrameworks.item = if (currentFrameworkItem in enabledTestFrameworks) currentFrameworkItem else defaultItem
@@ -873,7 +900,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
     }
 
     //We would like to disable parametrization options for JUnit4
-    private fun updateParametrizationVisibility(testFramework: TestFramework) {
+    private fun updateParametrizationEnabled(testFramework: TestFramework) {
         when (testFramework) {
             Junit4 -> parametrizedTestSources.isEnabled = false
             Junit5,
@@ -882,9 +909,6 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
     }
 
     private fun updateMockStrategyList() {
-        MOCKITO.isInstalled =
-            findFrameworkLibrary(model.project, model.testModule, MOCKITO) != null
-
         mockStrategies.renderer = object : ColoredListCellRenderer<MockStrategyApi>() {
             override fun customizeCellRenderer(
                 list: JList<out MockStrategyApi>, value: MockStrategyApi?,
@@ -899,8 +923,6 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
     }
 
     private fun updateStaticMockingStrategyList() {
-        val staticsMockingConfigured = staticsMockingConfigured()
-        StaticsMocking.allItems.forEach { it.isConfigured = staticsMockingConfigured }
         staticsMocking.renderer = object : ColoredListCellRenderer<StaticsMocking>() {
             override fun customizeCellRenderer(
                 list: JList<out StaticsMocking>, value: StaticsMocking?,
