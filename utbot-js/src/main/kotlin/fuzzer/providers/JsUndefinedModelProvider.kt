@@ -1,9 +1,10 @@
 package fuzzer.providers
 
-import fuzzer.providers.JsPrimitivesModelProvider.MAX_INT
-import fuzzer.providers.JsPrimitivesModelProvider.MIN_INT
 import org.utbot.framework.plugin.api.JsPrimitiveModel
 import org.utbot.framework.plugin.api.util.jsUndefinedClassId
+
+import fuzzer.providers.JsPrimitivesModelProvider.MAX_INT
+import fuzzer.providers.JsPrimitivesModelProvider.MIN_INT
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedParameter
 import org.utbot.fuzzer.FuzzedValue

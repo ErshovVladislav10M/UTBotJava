@@ -1,5 +1,7 @@
 package org.utbot.intellij.plugin.generator
 
+import api.JsUtModelConstructor
+import codegen.JsCodeGenerator
 import com.intellij.lang.ecmascript6.psi.ES6Class
 import com.intellij.lang.javascript.psi.JSFile
 import com.intellij.lang.javascript.psi.JSFunction
@@ -12,22 +14,28 @@ import com.oracle.js.parser.Parser
 import com.oracle.js.parser.ScriptEnvironment
 import com.oracle.js.parser.Source
 import com.oracle.js.parser.ir.FunctionNode
-import parser.JsFuzzerAstVisitor
 import fuzzer.JsFuzzer.jsFuzzing
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
+import org.utbot.framework.plugin.api.CgMethodTestSet
+import org.utbot.framework.plugin.api.EnvironmentModels
+import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMethodId
 import org.utbot.framework.plugin.api.JsPrimitiveModel
+import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
-import org.utbot.fuzzer.names.ModelBasedNameSuggester
 import org.utbot.intellij.plugin.ui.JsDialogWindow
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.utils.testModule
 import parser.JsFunctionAstVisitor
+import parser.JsFuzzerAstVisitor
+import parser.JsParserUtils
 import utils.TernService
+import utils.constructClass
+import utils.toAny
 import kotlin.random.Random
 
 object JsDialogProcessor {
@@ -65,26 +73,23 @@ object JsDialogProcessor {
     }
 
     private fun createTests(model: JsTestsModel, containingFilePath: String) {
-        val ternService = TernService(
-            model.project.basePath ?: throw IllegalStateException("Can't access project path."),
-            containingFilePath
-        )
+        TernService.filePathToInference = containingFilePath
+        TernService.projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path.")
+        TernService.run()
         model.selectedMethods?.forEach { jsMemberInfo ->
             var parentPsi = PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java)
+            // "toplevelHack" is from JsActionMethods
             if (parentPsi?.name == null || parentPsi.name == "toplevelHack") {
                 parentPsi = null
             }
             val funcNode = getFunctionNode(jsMemberInfo, parentPsi?.name)
-            // TODO MINOR: for some reason this won't extract attributes. Fix.
-            val attributeList = (jsMemberInfo.member as JSFunction).attributeList
-            val methodTypes = ternService.processMethod(parentPsi?.name, funcNode.name.toString())
-            val execId = JsMethodId(
-                JsClassId(parentPsi?.name ?: "undefined"),
-                funcNode.name.toString(),
-                methodTypes.returnType,
-                methodTypes.parameters,
-                attributeList?.attributes?.find { it.text.contains("static") } != null
-            )
+            val classId = parentPsi?.let {
+                val classNode = JsParserUtils.searchForClassDecl(it.name!!, containingFilePath)
+                JsClassId(it.name!!).constructClass(classNode)
+            } ?: JsClassId("undefined").constructClass(functions = listOf(funcNode))
+            val execId = classId.allMethods.find {
+                it.name == funcNode.name.toString()
+            } ?: throw IllegalStateException()
             funcNode.body.accept(JsFuzzerAstVisitor)
             val methodUnderTestDescription = FuzzedMethodDescription(execId, JsFuzzerAstVisitor.fuzzedConcreteValues).apply {
                 compilableName = funcNode.name.toString()
@@ -93,21 +98,36 @@ object JsDialogProcessor {
             }
             val fuzzedValues =
                 jsFuzzing(methodUnderTestDescription = methodUnderTestDescription).toList()
-            // For dev purposes only random set of fuzzed values is picked.  SEVERE: patch this later
+            // For dev purposes only random set of fuzzed values is picked. TODO SEVERE: patch this later
             val randomParams = getRandomNumFuzzedValues(fuzzedValues)
-            val testsForGenerator = mutableListOf<Sequence<*>>()
+            val testsForGenerator = mutableListOf<UtExecution>()
             randomParams.forEach { param ->
-                val returnValue = runJs(param, funcNode, jsMemberInfo.member.text)
-                // For dev purposes only 10 random sets of fuzzed values is picked. TODO SEVERE: patch this later
-                // Hack: Should create one file with all fun to compile? TODO MINOR: think
+                // Hack: Should create one file with all functions to run? TODO MINOR: think
+                val utConstructor = JsUtModelConstructor()
+                val (returnValue, valueClassId) = runJs(param, funcNode, jsMemberInfo.member.text).toAny()
+                val result = utConstructor.construct(returnValue, valueClassId)
+                val initEnv = EnvironmentModels(null, param.map { it.model }, mapOf())
                 testsForGenerator.add(
-                    ModelBasedNameSuggester().suggest(
-                        methodUnderTestDescription,
-                        param,
-                        UtExecutionSuccess(JsPrimitiveModel(returnValue))
+                    UtExecution(
+                        stateBefore = initEnv,
+                        stateAfter = initEnv,
+                        result = UtExecutionSuccess(result),
+                        instrumentation = emptyList(),
+                        path = mutableListOf(),
+                        fullPath = emptyList(),
                     )
                 )
             }
+            val testSet = CgMethodTestSet(
+                execId,
+                testsForGenerator
+            )
+            val codeGen = JsCodeGenerator(
+                classId,
+                mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
+            )
+            val opachki = codeGen.generateAsStringWithTestReport(listOf(testSet))
+            val NIHUYA = 1
         }
     }
 

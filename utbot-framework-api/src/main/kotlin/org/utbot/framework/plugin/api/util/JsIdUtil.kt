@@ -27,8 +27,11 @@ val jsBasic = setOf(
 fun ClassId.toJsClassId() =
     when (this) {
         intClassId -> jsNumberClassId
+        byteClassId -> jsNumberClassId
+        shortClassId -> jsNumberClassId
         booleanClassId -> jsBooleanClassId
         doubleClassId -> jsDoubleClassId
+        floatClassId -> jsDoubleClassId
         stringClassId -> jsStringClassId
         longClassId -> jsNumberClassId
         else -> jsUndefinedClassId

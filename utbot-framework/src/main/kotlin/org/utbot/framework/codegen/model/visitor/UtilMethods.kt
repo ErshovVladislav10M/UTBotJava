@@ -1,5 +1,6 @@
 package org.utbot.framework.codegen.model.visitor
 
+import java.lang.reflect.Array
 import org.utbot.framework.codegen.StaticImport
 import org.utbot.framework.codegen.model.constructor.builtin.arraysDeepEqualsMethodId
 import org.utbot.framework.codegen.model.constructor.builtin.createArrayMethodId
@@ -28,6 +29,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.util.Arrays
 import java.util.Objects
+import java.util.stream.Stream
 
 internal fun ClassId.utilMethodById(id: MethodId, context: CgContext): String =
     with(context) {
@@ -87,6 +89,8 @@ fun getEnumConstantByName(language: CodegenLanguage): String =
             }
         """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun getStaticFieldValue(language: CodegenLanguage): String =
@@ -137,6 +141,8 @@ fun getStaticFieldValue(language: CodegenLanguage): String =
             }
         """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun getFieldValue(language: CodegenLanguage): String =
@@ -187,6 +193,8 @@ fun getFieldValue(language: CodegenLanguage): String =
             }
         """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun setStaticField(language: CodegenLanguage): String =
@@ -238,6 +246,8 @@ fun setStaticField(language: CodegenLanguage): String =
             }
         """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun setField(language: CodegenLanguage): String =
@@ -289,6 +299,8 @@ fun setField(language: CodegenLanguage): String =
             }
         """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun createArray(language: CodegenLanguage): String =
@@ -323,6 +335,8 @@ fun createArray(language: CodegenLanguage): String =
             }
         """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun createInstance(language: CodegenLanguage): String =
@@ -345,6 +359,8 @@ fun createInstance(language: CodegenLanguage): String =
             }
             """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 fun getUnsafeInstance(language: CodegenLanguage): String =
@@ -367,6 +383,8 @@ fun getUnsafeInstance(language: CodegenLanguage): String =
             }
             """
         }
+
+        CodegenLanguage.JS -> TODO()
     }.trimIndent()
 
 /**
@@ -581,6 +599,8 @@ fun deepEquals(language: CodegenLanguage, mockFrameworkUsed: Boolean, mockFramew
             }
             """.trimIndent()
         }
+
+        CodegenLanguage.JS -> TODO()
     }
 
 fun arraysDeepEquals(language: CodegenLanguage): String =
@@ -623,6 +643,8 @@ fun arraysDeepEquals(language: CodegenLanguage): String =
             }
             """.trimIndent()
         }
+
+        CodegenLanguage.JS -> TODO()
     }
 
 fun iterablesDeepEquals(language: CodegenLanguage): String =
@@ -663,6 +685,8 @@ fun iterablesDeepEquals(language: CodegenLanguage): String =
             }
             """.trimIndent()
         }
+
+        CodegenLanguage.JS -> TODO()
     }
 
 fun streamsDeepEquals(language: CodegenLanguage): String =
@@ -707,6 +731,8 @@ fun streamsDeepEquals(language: CodegenLanguage): String =
             }
             """.trimIndent()
         }
+
+        CodegenLanguage.JS -> TODO()
     }
 
 fun mapsDeepEquals(language: CodegenLanguage): String =
@@ -763,6 +789,8 @@ fun mapsDeepEquals(language: CodegenLanguage): String =
             }
             """.trimIndent()
         }
+
+        CodegenLanguage.JS -> TODO()
     }
 
 fun hasCustomEquals(language: CodegenLanguage): String =
@@ -801,6 +829,8 @@ fun hasCustomEquals(language: CodegenLanguage): String =
             }
             """.trimIndent()
         }
+
+        CodegenLanguage.JS -> TODO()
     }
 
 fun getArrayLength(codegenLanguage: CodegenLanguage) =
@@ -815,6 +845,8 @@ fun getArrayLength(codegenLanguage: CodegenLanguage) =
             """
             private fun getArrayLength(arr: kotlin.Any?): Int = java.lang.reflect.Array.getLength(arr)
             """.trimIndent()
+
+        CodegenLanguage.JS -> TODO()
     }
 
 internal fun CgContextOwner.importUtilMethodDependencies(id: MethodId) {
@@ -850,22 +882,27 @@ private fun ClassId.regularImportsByUtilMethod(id: MethodId, codegenLanguage: Co
                 Arrays::class.id
             )
             CodegenLanguage.KOTLIN -> listOf(fieldClassId, Arrays::class.id)
+            CodegenLanguage.JS -> TODO()
         }
         arraysDeepEqualsMethodId -> when (codegenLanguage) {
-            CodegenLanguage.JAVA -> listOf(java.lang.reflect.Array::class.id, Set::class.id)
-            CodegenLanguage.KOTLIN -> listOf(java.lang.reflect.Array::class.id)
+            CodegenLanguage.JAVA -> listOf(Array::class.id, Set::class.id)
+            CodegenLanguage.KOTLIN -> listOf(Array::class.id)
+            CodegenLanguage.JS -> TODO()
         }
         iterablesDeepEqualsMethodId -> when (codegenLanguage) {
             CodegenLanguage.JAVA -> listOf(Iterable::class.id, Iterator::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> emptyList()
+            CodegenLanguage.JS -> TODO()
         }
         streamsDeepEqualsMethodId -> when (codegenLanguage) {
-            CodegenLanguage.JAVA -> listOf(java.util.stream.Stream::class.id, Set::class.id)
+            CodegenLanguage.JAVA -> listOf(Stream::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> emptyList()
+            CodegenLanguage.JS -> TODO()
         }
         mapsDeepEqualsMethodId -> when (codegenLanguage) {
             CodegenLanguage.JAVA -> listOf(Map::class.id, Iterator::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> emptyList()
+            CodegenLanguage.JS -> TODO()
         }
         hasCustomEqualsMethodId -> emptyList()
         getArrayLengthMethodId -> listOf(java.lang.reflect.Array::class.id)

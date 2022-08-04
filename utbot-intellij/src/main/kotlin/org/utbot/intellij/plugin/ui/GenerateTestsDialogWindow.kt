@@ -129,6 +129,7 @@ import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.JPanel
+import org.utbot.framework.codegen.Mocha
 import kotlin.streams.toList
 import org.utbot.intellij.plugin.util.isAbstract
 
@@ -662,6 +663,7 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
             Junit4 -> jUnit4LibraryDescriptor(versionInProject)
             Junit5 -> jUnit5LibraryDescriptor(versionInProject)
             TestNg -> testNgLibraryDescriptor(versionInProject)
+            else -> throw IllegalStateException()
         }
 
         selectedTestFramework.isInstalled = true
@@ -902,7 +904,8 @@ class GenerateTestsDialogWindow(val model: GenerateTestsModel) : DialogWrapper(m
     //We would like to disable parametrization options for JUnit4
     private fun updateParametrizationEnabled(testFramework: TestFramework) {
         when (testFramework) {
-            Junit4 -> parametrizedTestSources.isEnabled = false
+            Junit4,
+            Mocha -> parametrizedTestSources.isEnabled = false
             Junit5,
             TestNg -> parametrizedTestSources.isEnabled = true
         }

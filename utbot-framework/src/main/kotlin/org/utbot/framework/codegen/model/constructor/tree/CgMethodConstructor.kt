@@ -148,10 +148,11 @@ import org.utbot.framework.util.isUnit
 import org.utbot.summary.SummarySentenceConstants.TAB
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.lang.reflect.InvocationTargetException
+import org.utbot.framework.codegen.Mocha
 
 private const val DEEP_EQUALS_MAX_DEPTH = 5 // TODO move it to plugin settings?
 
-internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
+class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
     CgFieldStateManager by CgComponents.getFieldStateManagerBy(context),
     CgCallableAccessManager by CgComponents.getCallableAccessManagerBy(context),
     CgStatementConstructor by CgComponents.getStatementConstructorBy(context) {
@@ -1076,12 +1077,15 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
                     if (result.isUnit() || executable.returnType == voidClassId) return
 
                     emptyLineIfNeeded()
-
+                    val kek = CgClassId(result.classId, isNullable = result is UtNullModel)
                     actual = newVar(
-                        CgClassId(result.classId, isNullable = result is UtNullModel),
+                        kek,
                         "actual"
                     ) {
-                        thisInstance[executable](*methodArguments.toTypedArray())
+                        val lol = thisInstance[executable]
+                        val hahaha = methodArguments.toTypedArray()
+                        val zalupa = lol(*hahaha)
+                        zalupa
                     }
                 }
             }
@@ -1206,6 +1210,7 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
                                 val pseudoExceptionVarName = when (codegenLanguage) {
                                     CodegenLanguage.JAVA -> "${expectedErrorVarName}.isInstance(${e.name.decapitalize()})"
                                     CodegenLanguage.KOTLIN -> "${expectedErrorVarName}!!.isInstance(${e.name.decapitalize()})"
+                                    CodegenLanguage.JS -> throw UnsupportedOperationException()
                                 }
 
                                 testFrameworkManager.assertBoolean(CgVariable(pseudoExceptionVarName, booleanClassId))
@@ -1473,6 +1478,7 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
                 ),
             )
             Junit4 -> error("Parameterized tests are not supported for JUnit4")
+            Mocha -> error("Parameterized tests are not supported for Mocha.js")
         }
 
     /**
@@ -1491,6 +1497,7 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
                     CgAllocateArray(argListClassId, Array<Any>::class.java.id, length)
                 }
             Junit4 -> error("Parameterized tests are not supported for JUnit4")
+            Mocha -> error("Parameterized tests are not supported for Mocha.js")
         }
     }
 
@@ -1530,6 +1537,7 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
                 )
             }
             Junit4 -> error("Parameterized tests are not supported for JUnit4")
+            Mocha -> error("Parameterized tests are not supported for Mocha.js")
         }
 
 
@@ -1584,6 +1592,7 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
                 ),
             )
             Junit4 -> error("Parameterized tests are not supported for JUnit4")
+            Mocha -> error("Parameterized tests are not supported for Mocha.js")
         }
 
     private fun testMethod(

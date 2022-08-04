@@ -297,7 +297,12 @@ internal interface CgContextOwner {
         val prevValueByModelId = valueByModelId.toMutableMap()
         return try {
             block()
-        } finally {
+        }
+        catch (e: Exception) {
+            e.printStackTrace()
+            throw UnsupportedOperationException()
+        }
+        finally {
             existingVariableNames = prevVariableNames
             declaredClassRefs = prevDeclaredClassRefs
             declaredExecutableRefs = prevDeclaredExecutableRefs
@@ -383,7 +388,7 @@ internal interface CgContextOwner {
 /**
  * Context with current code generation info
  */
-internal data class CgContext(
+data class CgContext(
     override val classUnderTest: ClassId,
     override var currentExecutable: ExecutableId? = null,
     override val collectedTestClassInterfaces: MutableSet<ClassId> = mutableSetOf(),

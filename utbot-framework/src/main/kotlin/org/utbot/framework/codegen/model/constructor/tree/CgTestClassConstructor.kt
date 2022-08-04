@@ -31,7 +31,7 @@ import org.utbot.framework.plugin.api.util.description
 import org.utbot.framework.plugin.api.util.kClass
 import kotlin.reflect.KClass
 
-internal class CgTestClassConstructor(val context: CgContext) :
+class CgTestClassConstructor(val context: CgContext) :
     CgContextOwner by context,
     CgStatementConstructor by CgComponents.getStatementConstructorBy(context) {
 
@@ -95,7 +95,9 @@ internal class CgTestClassConstructor(val context: CgContext) :
                     for (i in executionIndices) {
                         runCatching {
                             currentTestCaseTestMethods += methodConstructor.createTestMethod(methodUnderTest, executions[i])
-                        }.onFailure { e -> processFailure(testSet, e) }
+                        }.onFailure {
+//                                e -> e.printStackTrace()
+                        }
                     }
                     val clusterHeader = clusterSummary?.header
                     val clusterContent = clusterSummary?.content

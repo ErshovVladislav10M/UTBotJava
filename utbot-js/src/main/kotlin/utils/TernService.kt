@@ -8,6 +8,7 @@ import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMultipleClassId
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.jsUndefinedClassId
+import parser.JsParserUtils
 
 /*
     NOTE: this approach is quite bad, but we failed to implement alternatives.
@@ -18,11 +19,15 @@ import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 /**
  * Installs and sets up scripts for running Tern.js type inferencer.
  */
-class TernService(private val projectPath: String, filePathToInference: String) {
+object TernService {
+
+    var projectPath = ""
+
+    var filePathToInference = ""
 
     private val utbotDir = "utbotJs"
 
-    private val ternScriptCode = """
+    private fun ternScriptCode() = """
 // @ts-ignore        
 import * as tern from "tern/lib/tern.js";
 // @ts-ignore
@@ -67,7 +72,7 @@ function test(options) {
 test("$filePathToInference")
     """
 
-    private val packageJsonCode = """
+    private const val packageJsonCode = """
 {
     "name": "utbotTern",
     "version": "1.0.0",
@@ -80,7 +85,7 @@ test("$filePathToInference")
 
     private lateinit var json: JSONObject
 
-    init {
+    fun run() {
         setupTernEnv("$projectPath/$utbotDir")
         installDeps("$projectPath/$utbotDir")
         runTypeInferencer()
@@ -93,7 +98,7 @@ test("$filePathToInference")
     private fun setupTernEnv(path: String) {
         File(path).mkdirs()
         val ternScriptFile = File("$path/ternScript.js")
-        ternScriptFile.writeText(ternScriptCode, Charset.defaultCharset())
+        ternScriptFile.writeText(ternScriptCode(), Charset.defaultCharset())
         ternScriptFile.createNewFile()
         val packageJsonFile = File("$path/package.json")
         packageJsonFile.writeText(packageJsonCode, Charset.defaultCharset())
@@ -105,10 +110,39 @@ test("$filePathToInference")
         json = JSONObject(reader.readText())
     }
 
-    fun processMethod(className: String?, methodName: String): MethodTypes {
+    fun processConstructor(className: String): List<JsClassId> {
+        val classJson = json.getJSONObject(className)
+        val constructorFunc = classJson.getString("!type")
+            .filterNot { setOf(' ', '+', '!').contains(it) }
+        return extractParameters(constructorFunc)
+    }
+
+    private fun extractParameters(line: String): List<JsClassId> {
+        val parametersRegex = Regex("fn[(](.+)[)]")
+        return parametersRegex.find(line)?.groups?.get(1)?.let { matchResult ->
+            val value = matchResult.value
+            val paramList = value.split(',')
+            paramList.map { param ->
+                val paramReg = Regex(":(.*)")
+                makeClassId(paramReg.find(param)?.groups?.get(1)?.value
+                    ?: throw IllegalStateException()
+                )
+            }
+        } ?: emptyList()
+    }
+
+    private fun extractReturnType(line: String): JsClassId {
+        val returnTypeRegex = Regex("->(.*)")
+        return returnTypeRegex.find(line)?.groups?.get(1)?.let { matchResult ->
+            val value = matchResult.value
+            makeClassId(value)
+        } ?: jsUndefinedClassId
+    }
+
+    fun processMethod(className: String?, methodName: String, isToplevel: Boolean = false): MethodTypes {
         // Js doesn't support nested classes, so if the function is not top-level, then we can check for only one parent class.
         var scope = className?.let {
-            json.getJSONObject(it)
+            if (!isToplevel) json.getJSONObject(it) else json
         } ?: json
         try {
             scope.getJSONObject(methodName)
@@ -118,23 +152,8 @@ test("$filePathToInference")
         val methodJson = scope.getJSONObject(methodName)
         val typesString = methodJson.getString("!type")
             .filterNot { setOf(' ', '+', '!').contains(it) }
-        val parametersRegex = Regex("fn[(](.+)[)]")
-        val parametersList = parametersRegex.find(typesString)?.groups?.get(1)?.let { matchResult ->
-            val value = matchResult.value
-            val paramList = value.split(',')
-            paramList.map { param ->
-                val paramReg = Regex(":(.*)")
-                makeClassId(paramReg.find(param)?.groups?.get(1)?.value
-                    ?.toLowerCase()
-                    ?: throw IllegalStateException()
-                )
-            }
-        } ?: emptyList()
-        val returnTypeRegex = Regex("->(.*)")
-        val returnType = returnTypeRegex.find(typesString)?.groups?.get(1)?.let { matchResult ->
-            val value = matchResult.value
-            makeClassId(value.toLowerCase())
-        } ?: jsUndefinedClassId
+        val parametersList = extractParameters(typesString)
+        val returnType = extractReturnType(typesString)
 
         return MethodTypes(parametersList, returnType)
     }
@@ -143,13 +162,15 @@ test("$filePathToInference")
     private fun makeClassId(name: String): JsClassId {
         val classId = when {
             name == "?" -> jsUndefinedClassId
-            name.contains('|') -> JsMultipleClassId(name)
-            else -> JsClassId(name)
+            name.contains('|') -> JsMultipleClassId(name.toLowerCase())
+            else -> JsClassId(name.toLowerCase())
         }
        return when {
             classId.isJsBasic || classId is JsMultipleClassId -> classId
-            //TODO SEVERE
-            else -> throw UnsupportedOperationException("Not yet implemented.")
+            else -> {
+                val classNode = JsParserUtils.searchForClassDecl(name, filePathToInference)
+                JsClassId(name).constructClass(classNode)
+            }
         }
     }
 }

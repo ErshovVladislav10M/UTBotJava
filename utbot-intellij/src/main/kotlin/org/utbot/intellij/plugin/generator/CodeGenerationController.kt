@@ -222,6 +222,7 @@ object CodeGenerationController {
                                 when (model.codegenLanguage) {
                                     CodegenLanguage.JAVA -> it !is KtUltraLightClass
                                     CodegenLanguage.KOTLIN -> it is KtUltraLightClass
+                                    CodegenLanguage.JS -> TODO()
                                 }
                             }
                     })
@@ -237,6 +238,7 @@ object CodeGenerationController {
             when (model.codegenLanguage) {
                 CodegenLanguage.JAVA -> JavaTemplateUtil.INTERNAL_CLASS_TEMPLATE_NAME
                 CodegenLanguage.KOTLIN -> "Kotlin Class"
+                CodegenLanguage.JS -> TODO()
             }
         )
         runWriteAction { testDirectory.findFile(testClassName + model.codegenLanguage.extension)?.delete() }

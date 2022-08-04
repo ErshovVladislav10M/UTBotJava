@@ -16,6 +16,8 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.util.projectStructure.module
+import org.utbot.framework.plugin.api.JsClassId
+import org.utbot.framework.plugin.api.util.id
 import org.utbot.intellij.plugin.generator.JsDialogProcessor
 
 object JsActionMethods {
@@ -29,6 +31,11 @@ object JsActionMethods {
         val module: Module,
         val containingFilePath: String
     )
+
+    fun debug() {
+        val kek = JsClassId::class.java
+        val lol = kek.id
+    }
 
     fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return

@@ -14,11 +14,14 @@ import org.utbot.framework.codegen.model.constructor.tree.CgTestClassConstructor
 import org.utbot.framework.codegen.model.constructor.tree.CgVariableConstructor
 import org.utbot.framework.codegen.model.constructor.tree.CgFieldStateManager
 import org.utbot.framework.codegen.model.constructor.tree.CgFieldStateManagerImpl
+import org.utbot.framework.codegen.model.constructor.tree.JsCgVariableConstructor
 import org.utbot.framework.codegen.model.constructor.tree.Junit4Manager
 import org.utbot.framework.codegen.model.constructor.tree.Junit5Manager
+import org.utbot.framework.codegen.model.constructor.tree.MochaManager
 import org.utbot.framework.codegen.model.constructor.tree.MockFrameworkManager
 import org.utbot.framework.codegen.model.constructor.tree.TestFrameworkManager
 import org.utbot.framework.codegen.model.constructor.tree.TestNgManager
+import org.utbot.framework.plugin.api.CodegenLanguage
 
 // TODO: probably rewrite it to delegates so that we could write 'val testFrameworkManager by CgComponents' etc.
 internal object CgComponents {
@@ -34,7 +37,7 @@ internal object CgComponents {
         is Junit4 -> testFrameworkManagers.getOrPut(context) { Junit4Manager(context) }
         is Junit5 -> testFrameworkManagers.getOrPut(context) { Junit5Manager(context) }
         is TestNg -> testFrameworkManagers.getOrPut(context) { TestNgManager(context) }
-        is Mocha -> throw UnsupportedOperationException()
+        is Mocha -> testFrameworkManagers.getOrPut(context) { MochaManager(context) }
     }
 
     fun getMockFrameworkManagerBy(context: CgContext) =
@@ -43,7 +46,10 @@ internal object CgComponents {
     fun getFieldStateManagerBy(context: CgContext) =
             fieldStateManagers.getOrPut(context) { CgFieldStateManagerImpl(context) }
 
-    fun getVariableConstructorBy(context: CgContext) = variableConstructors.getOrPut(context) { CgVariableConstructor(context) }
+    fun getVariableConstructorBy(context: CgContext) = when (context.codegenLanguage) {
+        CodegenLanguage.JS -> variableConstructors.getOrPut(context) { JsCgVariableConstructor(context) }
+        else -> variableConstructors.getOrPut(context) { CgVariableConstructor(context) }
+    }
 
     fun getMethodConstructorBy(context: CgContext) = methodConstructors.getOrPut(context) { CgMethodConstructor(context) }
     fun getTestClassConstructorBy(context: CgContext) = testClassConstructors.getOrPut(context) { CgTestClassConstructor(context) }

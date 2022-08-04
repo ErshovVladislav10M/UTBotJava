@@ -24,6 +24,7 @@ class JsFunctionAstVisitor(
         functionNode?.let {
             if (it.name.toString() == target && className == lastVisitedClassName) {
                 targetFunctionNode = it
+                return false
             }
         }
         return true

@@ -41,9 +41,10 @@ import org.utbot.framework.plugin.api.util.intArrayClassId
 import org.utbot.framework.plugin.api.util.longArrayClassId
 import org.utbot.framework.plugin.api.util.shortArrayClassId
 import java.util.concurrent.TimeUnit
+import org.utbot.framework.codegen.Mocha
 
 @Suppress("MemberVisibilityCanBePrivate")
-internal abstract class TestFrameworkManager(val context: CgContext)
+abstract class TestFrameworkManager(val context: CgContext)
     : CgContextOwner by context,
         CgCallableAccessManager by CgComponents.getCallableAccessManagerBy(context) {
 
@@ -277,6 +278,18 @@ internal class TestNgManager(context: CgContext) : TestFrameworkManager(context)
             )
         }
     }
+}
+
+internal class MochaManager(context: CgContext): TestFrameworkManager(context) {
+    override fun expectException(exception: ClassId, block: () -> Unit) {
+        require(testFramework is Mocha) { "According to settings, Mocha.js was expected, but got: $testFramework" }
+        block()
+    }
+
+    override fun disableTestMethod(reason: String) {
+
+    }
+
 }
 
 internal class Junit4Manager(context: CgContext) : TestFrameworkManager(context) {

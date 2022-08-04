@@ -33,7 +33,6 @@ import org.utbot.framework.plugin.api.util.primitiveTypeJvmNameOrNull
 import org.utbot.framework.plugin.api.util.shortClassId
 import org.utbot.framework.plugin.api.util.toReferenceTypeBytecodeSignature
 import org.utbot.framework.plugin.api.util.voidClassId
-import org.utbot.framework.plugin.api.util.toJsClassId
 import soot.ArrayType
 import soot.BooleanType
 import soot.ByteType
@@ -52,6 +51,7 @@ import soot.jimple.Stmt
 import java.io.File
 import java.lang.reflect.Modifier
 import org.utbot.framework.plugin.api.util.jsUndefinedClassId
+import org.utbot.framework.plugin.api.util.toJsClassId
 import kotlin.jvm.internal.CallableReference
 import kotlin.reflect.KCallable
 import kotlin.reflect.KClass
@@ -113,6 +113,20 @@ data class CgMethodTestSet private constructor(
         from.jimpleBody,
         from.errors,
         from.clustersInfo
+    )
+
+    /**
+     * For JavaScript purposes.
+     */
+    constructor(
+        executableId: ExecutableId,
+        executions: List<UtExecution> = emptyList(),
+    ) : this(
+        executableId,
+        executions,
+        null,
+        emptyMap(),
+        listOf(null to executions.indices)
     )
 }
 
@@ -243,7 +257,7 @@ data class UtError(
  *
  * UtNullModel represents nulls, other models represent not-nullable entities.
  */
-sealed class UtModel(
+open class UtModel(
     open val classId: ClassId
 )
 
@@ -586,7 +600,8 @@ data class UtStaticMethodInstrumentation(
 open class JsClassId(
     private val jsName: String,
     private val methods: Sequence<JsMethodId> = emptySequence(),
-    private val constructors: Sequence<JsConstructorId> = emptySequence(),
+    private val constructor: JsConstructorId? = null,
+    private val classPackageName: String = "",
 ) : ClassId(jsName) {
     override val simpleName: String
         get() = jsName
@@ -595,15 +610,66 @@ open class JsClassId(
         get() = methods
 
     override val allConstructors: Sequence<ConstructorId>
-        get() = constructors
+        get() = if (constructor == null) emptySequence() else sequenceOf(constructor)
+
+    override val packageName: String
+        get() = classPackageName
+
+    override val canonicalName: String
+        get() = jsName
+
+    //TODO SEVERE: Check if overrides are correct
+    override val isAbstract: Boolean
+        get() = false
+
+    override val isAnonymous: Boolean
+        get() = false
+
+    override val isFinal: Boolean
+        get() = false
+
+    override val isInDefaultPackage: Boolean
+        get() = false
+
+    override val isInner: Boolean
+        get() = false
+
+    override val isLocal: Boolean
+        get() = false
+
+    override val isNested: Boolean
+        get() = false
+
+    override val isNullable: Boolean
+        get() = false
+
+    override val isPrivate: Boolean
+        get() = false
+
+    override val isProtected: Boolean
+        get() = false
+
+    override val isPublic: Boolean
+        get() = true
+
+    //TODO SEVERE: isStatic is definitely incorrect!
+    override val isStatic: Boolean
+        get() = false
+
+    override val isSynthetic: Boolean
+        get() = false
+
+    override val outerClass: Class<*>?
+        get() = null
+
 }
 
 class JsMethodId(
-    override val classId: JsClassId,
+    override var classId: JsClassId,
     override val name: String,
     override val returnType: JsClassId,
     override val parameters: List<JsClassId>,
-    private val staticModifier: Boolean,
+    private val staticModifier: Boolean = false,
 ) : MethodId(classId, name, returnType, parameters) {
 
     override val isPrivate: Boolean
@@ -617,10 +683,11 @@ class JsMethodId(
 
     override val isStatic: Boolean
         get() = staticModifier
+
 }
 
 class JsConstructorId(
-    override val classId: JsClassId,
+    override var classId: JsClassId,
     override val parameters: List<JsClassId>,
 ) : ConstructorId(classId, parameters) {
 
@@ -647,6 +714,13 @@ open class JsUtModel(
     override val classId: JsClassId
 ): UtModel(classId)
 
+
+class JsNullModel(
+    override val classId: JsClassId
+): JsUtModel(classId) {
+    override fun toString() = "null"
+}
+
 class JsUndefinedModel(
     classId: JsClassId
 ): JsUtModel(classId) {
@@ -660,13 +734,6 @@ data class JsPrimitiveModel(
 }
 private fun jsPrimitiveModelValueToClassId(value: Any) =
     primitiveModelValueToClassId(value).toJsClassId()
-
-class JsNullModel(
-    classId: JsClassId
-) : JsUtModel(classId) {
-    override fun toString() = "null"
-}
-
 
 
 
@@ -1192,7 +1259,8 @@ enum class CodegenLanguage(
     @Suppress("unused") override val description: String = "Generate unit tests in $displayName"
 ) : CodeGenerationSettingItem {
     JAVA(displayName = "Java"),
-    KOTLIN(displayName = "Kotlin (experimental)");
+    KOTLIN(displayName = "Kotlin (experimental)"),
+    JS(displayName = "JavaScript");
 
     enum class OperatingSystem {
         WINDOWS,
@@ -1217,18 +1285,21 @@ enum class CodegenLanguage(
         get() = when (this) {
             JAVA -> listOf(System.getenv("JAVA_HOME"), "bin", "javac")
             KOTLIN -> listOf(System.getenv("KOTLIN_HOME"), "bin", kotlinCompiler)
+            JS -> throw UnsupportedOperationException()
         }.joinToString(File.separator)
 
     val extension: String
         get() = when (this) {
             JAVA -> ".java"
             KOTLIN -> ".kt"
+            JS -> ".js"
         }
 
     val executorInvokeCommand: String
         get() = when (this) {
             JAVA -> listOf(System.getenv("JAVA_HOME"), "bin", "java")
             KOTLIN -> listOf(System.getenv("JAVA_HOME"), "bin", "java")
+            JS -> throw UnsupportedOperationException()
         }.joinToString(File.separator)
 
     override fun toString(): String = displayName
@@ -1241,6 +1312,7 @@ enum class CodegenLanguage(
                 "-XDignore.symbol.file" // to let javac use classes from rt.jar
             ).plus(sourcesFiles)
             KOTLIN -> listOf("-d", buildDirectory, "-jvm-target", jvmTarget, "-cp", classPath).plus(sourcesFiles)
+            JS -> throw UnsupportedOperationException()
         }
         if (this == KOTLIN && System.getenv("KOTLIN_HOME") == null) {
             throw RuntimeException("'KOTLIN_HOME' environment variable is not defined. Standard location is {IDEA installation dir}/plugins/Kotlin/kotlinc")
