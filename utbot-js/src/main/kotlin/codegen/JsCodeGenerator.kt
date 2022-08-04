@@ -8,9 +8,11 @@ import org.utbot.framework.codegen.RuntimeExceptionTestsBehaviour
 import org.utbot.framework.codegen.StaticsMocking
 import org.utbot.framework.codegen.TestFramework
 import org.utbot.framework.codegen.model.TestsCodeWithTestReport
+import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.codegen.model.constructor.context.CgContext
 import org.utbot.framework.codegen.model.constructor.tree.CgTestClassConstructor
-import org.utbot.framework.plugin.api.CgMethodTestSet
+import org.utbot.framework.codegen.model.tree.CgTestClassFile
+import org.utbot.framework.codegen.model.visitor.CgAbstractRenderer
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.JsClassId
@@ -48,7 +50,7 @@ class JsCodeGenerator(
         context.withClassScope {
             val testClassFile = CgTestClassConstructor(context).construct(cgTestSets)
             // TODO: fix generatedCode param
-            TestsCodeWithTestReport("", testClassFile.testsGenerationReport)
+            TestsCodeWithTestReport(renderClassFile(testClassFile), testClassFile.testsGenerationReport)
         }
     }
 
@@ -63,5 +65,11 @@ class JsCodeGenerator(
         } finally {
             context = prevContext
         }
+    }
+
+    private fun renderClassFile(file: CgTestClassFile): String {
+        val renderer = CgAbstractRenderer.makeRenderer(context)
+        file.accept(renderer)
+        return renderer.toString()
     }
 }

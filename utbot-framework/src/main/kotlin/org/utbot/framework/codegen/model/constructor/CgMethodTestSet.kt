@@ -29,6 +29,22 @@ data class CgMethodTestSet private constructor(
     }
 
     /**
+     * For JavaScript purposes.
+     */
+    constructor(
+        executableId: ExecutableId,
+        execs: List<UtExecution> = emptyList(),
+    ) : this(
+        executableId,
+        null,
+        emptyMap(),
+        listOf(null to execs.indices)
+    ) {
+        executions = execs
+    }
+
+
+    /**
      * Splits [CgMethodTestSet] into separate test sets having
      * unique result model [ClassId] in each subset.
      */

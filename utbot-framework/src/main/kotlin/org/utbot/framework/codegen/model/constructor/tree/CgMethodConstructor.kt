@@ -1080,15 +1080,11 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
                     if (result.isUnit() || executable.returnType == voidClassId) return
 
                     emptyLineIfNeeded()
-                    val kek = CgClassId(result.classId, isNullable = result is UtNullModel)
                     actual = newVar(
-                        kek,
+                        CgClassId(result.classId, isNullable = result is UtNullModel),
                         "actual"
                     ) {
-                        val lol = thisInstance[executable]
-                        val hahaha = methodArguments.toTypedArray()
-                        val zalupa = lol(*hahaha)
-                        zalupa
+                        thisInstance[executable](*methodArguments.toTypedArray())
                     }
                 }
             }

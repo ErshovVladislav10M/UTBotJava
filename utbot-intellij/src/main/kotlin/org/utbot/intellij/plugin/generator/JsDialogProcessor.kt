@@ -4,7 +4,6 @@ import api.JsUtModelConstructor
 import codegen.JsCodeGenerator
 import com.intellij.lang.ecmascript6.psi.ES6Class
 import com.intellij.lang.javascript.psi.JSFile
-import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
@@ -17,11 +16,9 @@ import com.oracle.js.parser.ir.FunctionNode
 import fuzzer.JsFuzzer.jsFuzzing
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
-import org.utbot.framework.plugin.api.CgMethodTestSet
+import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
-import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.JsClassId
-import org.utbot.framework.plugin.api.JsMethodId
 import org.utbot.framework.plugin.api.JsPrimitiveModel
 import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionSuccess
@@ -120,13 +117,14 @@ object JsDialogProcessor {
             }
             val testSet = CgMethodTestSet(
                 execId,
-                testsForGenerator
+                listOf(testsForGenerator.first())
             )
             val codeGen = JsCodeGenerator(
                 classId,
                 mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
             )
             val opachki = codeGen.generateAsStringWithTestReport(listOf(testSet))
+            println(opachki.generatedCode)
             val NIHUYA = 1
         }
     }

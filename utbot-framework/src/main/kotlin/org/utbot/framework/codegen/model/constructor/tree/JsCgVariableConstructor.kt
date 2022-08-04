@@ -13,7 +13,7 @@ import org.utbot.framework.plugin.api.UtCompositeModel
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtReferenceModel
 
-class JsCgVariableConstructor(ctx: CgContext): CgVariableConstructor(ctx) {
+internal class JsCgVariableConstructor(ctx: CgContext): CgVariableConstructor(ctx) {
 
     private val nameGenerator = CgComponents.getNameGeneratorBy(ctx)
 

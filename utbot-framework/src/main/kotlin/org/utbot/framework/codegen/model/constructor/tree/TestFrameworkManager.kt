@@ -315,6 +315,9 @@ internal class MochaManager(context: CgContext): TestFrameworkManager(context) {
 
     }
 
+    override fun addTestDescription(description: String?) {
+
+    }
 }
 
 internal class Junit4Manager(context: CgContext) : TestFrameworkManager(context) {

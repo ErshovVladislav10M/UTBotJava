@@ -92,7 +92,7 @@ import org.utbot.framework.plugin.api.util.isRefType
 import org.utbot.framework.plugin.api.util.longClassId
 import org.utbot.framework.plugin.api.util.shortClassId
 
-internal abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter = CgPrinterImpl()) : CgVisitor<Unit>,
+abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter = CgPrinterImpl()) : CgVisitor<Unit>,
     CgPrinter by printer {
 
     protected abstract val statementEnding: String
@@ -877,7 +877,7 @@ internal abstract class CgAbstractRenderer(val context: CgContext, val printer: 
             when (context.codegenLanguage) {
                 CodegenLanguage.JAVA -> CgJavaRenderer(context, printer)
                 CodegenLanguage.KOTLIN -> CgKotlinRenderer(context, printer)
-                CodegenLanguage.JS -> throw UnsupportedOperationException()
+                CodegenLanguage.JS -> CgJsRenderer(context, printer)
             }
 
         /**

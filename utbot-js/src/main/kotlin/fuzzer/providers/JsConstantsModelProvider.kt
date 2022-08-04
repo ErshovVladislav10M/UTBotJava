@@ -3,6 +3,7 @@ package fuzzer.providers
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsPrimitiveModel
 import org.utbot.framework.plugin.api.util.isJsPrimitive
+import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedOp
 import org.utbot.fuzzer.FuzzedParameter
@@ -24,7 +25,9 @@ object JsConstantsModelProvider : ModelProvider {
                 )
                     .filterNotNull()
                     .forEach { m ->
-                        description.parametersMap.getOrElse(m.model.classId) { emptyList() }.forEach { index ->
+                        description.parametersMap.getOrElse(m.model.classId) {
+                            description.parametersMap.getOrElse(jsUndefinedClassId) { emptyList() }
+                        }.forEach { index ->
                             yield(FuzzedParameter(index, m))
                         }
                     }

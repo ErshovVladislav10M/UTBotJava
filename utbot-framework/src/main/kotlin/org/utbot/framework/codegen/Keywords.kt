@@ -16,8 +16,6 @@ private val kotlinHardKeywords = setOf(
     "val", "var", "when", "while"
 )
 
-// Not implemented yet
-@Suppress("unused")
 private val jsKeywords = setOf(
     "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue",
     "debugger", "default", "delete", "do", "double", "else", "enum", "eval", "export", "extends", "false", "final",
@@ -46,7 +44,7 @@ private val kotlinKeywords = kotlinHardKeywords
 private fun getLanguageKeywords(codegenLanguage: CodegenLanguage): Set<String> = when(codegenLanguage) {
     CodegenLanguage.JAVA -> javaKeywords
     CodegenLanguage.KOTLIN -> kotlinKeywords
-    CodegenLanguage.JS -> throw UnsupportedOperationException()
+    CodegenLanguage.JS -> jsKeywords
 }
 
 fun isLanguageKeyword(word: String, codegenLanguage: CodegenLanguage): Boolean =

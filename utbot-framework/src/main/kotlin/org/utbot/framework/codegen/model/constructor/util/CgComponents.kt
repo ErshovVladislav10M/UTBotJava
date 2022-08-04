@@ -14,6 +14,8 @@ import org.utbot.framework.codegen.model.constructor.tree.CgTestClassConstructor
 import org.utbot.framework.codegen.model.constructor.tree.CgVariableConstructor
 import org.utbot.framework.codegen.model.constructor.tree.CgFieldStateManager
 import org.utbot.framework.codegen.model.constructor.tree.CgFieldStateManagerImpl
+import org.utbot.framework.codegen.model.constructor.tree.JsCgCallableAccessManagerImpl
+import org.utbot.framework.codegen.model.constructor.tree.JsCgStatementConstructorImpl
 import org.utbot.framework.codegen.model.constructor.tree.JsCgVariableConstructor
 import org.utbot.framework.codegen.model.constructor.tree.Junit4Manager
 import org.utbot.framework.codegen.model.constructor.tree.Junit5Manager
@@ -27,11 +29,16 @@ import org.utbot.framework.plugin.api.CodegenLanguage
 internal object CgComponents {
     fun getNameGeneratorBy(context: CgContext) = nameGenerators.getOrPut(context) { CgNameGeneratorImpl(context) }
 
-    fun getCallableAccessManagerBy(context: CgContext) =
-            callableAccessManagers.getOrPut(context) { CgCallableAccessManagerImpl(context) }
+    fun getCallableAccessManagerBy(context: CgContext) = when (context.codegenLanguage) {
+        CodegenLanguage.JS -> callableAccessManagers.getOrPut(context) { JsCgCallableAccessManagerImpl(context) }
+        else -> callableAccessManagers.getOrPut(context) { CgCallableAccessManagerImpl(context) }
+    }
 
-    fun getStatementConstructorBy(context: CgContext) =
-            statementConstructors.getOrPut(context) { CgStatementConstructorImpl(context) }
+    fun getStatementConstructorBy(context: CgContext) = when (context.codegenLanguage) {
+        CodegenLanguage.JS -> statementConstructors.getOrPut(context) { JsCgStatementConstructorImpl(context) }
+        else -> statementConstructors.getOrPut(context) { CgStatementConstructorImpl(context) }
+    }
+
 
     fun getTestFrameworkManagerBy(context: CgContext) = when (context.testFramework) {
         is Junit4 -> testFrameworkManagers.getOrPut(context) { Junit4Manager(context) }
