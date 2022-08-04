@@ -1,7 +1,6 @@
 package org.utbot.framework.codegen.model.constructor.tree
 
 import org.utbot.common.PathUtil
-import org.utbot.common.packageName
 import org.utbot.framework.assemble.assemble
 import org.utbot.framework.codegen.ForceStaticMocking
 import org.utbot.framework.codegen.Junit4
@@ -9,6 +8,7 @@ import org.utbot.framework.codegen.Junit5
 import org.utbot.framework.codegen.ParametrizedTestSource
 import org.utbot.framework.codegen.RuntimeExceptionTestsBehaviour.PASS
 import org.utbot.framework.codegen.TestNg
+import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.codegen.model.constructor.builtin.closeMethodIdOrNull
 import org.utbot.framework.codegen.model.constructor.builtin.forName
 import org.utbot.framework.codegen.model.constructor.builtin.getClass
@@ -85,7 +85,6 @@ import org.utbot.framework.fields.ExecutionStateAnalyzer
 import org.utbot.framework.fields.FieldPath
 import org.utbot.framework.plugin.api.BuiltinClassId
 import org.utbot.framework.plugin.api.BuiltinMethodId
-import org.utbot.framework.plugin.api.CgMethodTestSet
 import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.ConcreteExecutionFailureException
@@ -122,7 +121,7 @@ import org.utbot.framework.plugin.api.util.doubleArrayClassId
 import org.utbot.framework.plugin.api.util.doubleClassId
 import org.utbot.framework.plugin.api.util.doubleWrapperClassId
 import org.utbot.framework.plugin.api.util.executable
-import org.utbot.framework.plugin.api.util.field
+import org.utbot.framework.plugin.api.util.jField
 import org.utbot.framework.plugin.api.util.floatArrayClassId
 import org.utbot.framework.plugin.api.util.floatClassId
 import org.utbot.framework.plugin.api.util.floatWrapperClassId
@@ -380,7 +379,7 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
         val executableName = "${currentExecutable!!.classId.name}.${currentExecutable!!.name}"
 
         val warningLine = mutableListOf(
-            "This test fails because method [$executableName] produces [$exception]"
+            "This test fails because method [$executableName] produces [$exception]".escapeControlChars()
         )
 
         val neededStackTraceLines = mutableListOf<String>()
@@ -396,6 +395,10 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
         }
 
         +CgMultilineComment(warningLine + neededStackTraceLines.reversed())
+    }
+
+    private fun String.escapeControlChars() : String {
+        return this.replace("\b", "\\b").replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
     }
 
     private fun writeWarningAboutCrash() {
@@ -871,8 +874,8 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
     private fun FieldId.getAccessExpression(variable: CgVariable): CgExpression =
         // Can directly access field only if it is declared in variable class (or in its ancestors)
         // and is accessible from current package
-        if (variable.type.hasField(name) && isAccessibleFrom(testClassPackageName)) {
-            if (field.isStatic) CgStaticFieldAccess(this) else CgFieldAccess(variable, this)
+        if (variable.type.hasField(this) && isAccessibleFrom(testClassPackageName)) {
+            if (jField.isStatic) CgStaticFieldAccess(this) else CgFieldAccess(variable, this)
         } else {
             testClassThisInstance[getFieldValue](variable, stringLiteral(name))
         }
@@ -1267,9 +1270,7 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
                 currentMethodParameters[CgParameterKind.Argument(index)] = argument.parameter
             }
 
-            val method = currentExecutable!!
-            val expectedResultClassId = wrapTypeIfRequired(method.returnType)
-
+            val expectedResultClassId = wrapTypeIfRequired(testSet.resultType())
             if (expectedResultClassId != voidClassId) {
                 val wrappedType = wrapIfPrimitive(expectedResultClassId)
                 //We are required to wrap the type of expected result if it is primitive
@@ -1608,7 +1609,23 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
         } else {
             setOf(annotation(testFramework.testAnnotationId))
         }
-        displayName?.let { testFrameworkManager.addDisplayName(it) }
+
+        /* Add a short test's description depending on the test framework type:
+           DisplayName annotation in case of JUni5, and description argument to Test annotation in case of TestNG.
+         */
+        if (displayName != null) {
+            when (testFramework) {
+                is Junit5 -> {
+                    displayName.let { testFrameworkManager.addDisplayName(it) }
+                }
+                is TestNg -> {
+                    testFrameworkManager.addTestDescription(displayName)
+                }
+                else -> {
+                    // nothing
+                }
+            }
+        }
 
         val result = currentExecution!!.result
         if (result is UtTimeoutException) {

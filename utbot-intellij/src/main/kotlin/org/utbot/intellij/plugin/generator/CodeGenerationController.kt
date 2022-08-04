@@ -59,6 +59,7 @@ import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.UtMethodTestSet
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.executableId
+import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.withUtContext
 import org.utbot.framework.util.Conflict
 import org.utbot.intellij.plugin.generator.CodeGenerationController.Target.*
@@ -267,7 +268,7 @@ object CodeGenerationController {
             .runReadActionInSmartMode(Computable { findMethodParamNames(classUnderTest, classMethods) })
 
         val codeGenerator = CodeGenerator(
-                classUnderTest = classUnderTest.java,
+                classUnderTest = classUnderTest.id,
                 paramNames = paramNames.toMutableMap(),
                 testFramework = model.testFramework,
                 mockFramework = model.mockFramework,
@@ -303,28 +304,33 @@ object CodeGenerationController {
 
                     // reformatting before creating reports due to
                     // SarifReport requires the final version of the generated tests code
-                    runWriteCommandAction(testClassUpdated.project, "UtBot tests reformatting", null, {
-                        reformat(model, file, testClassUpdated)
-                    })
-                    unblockDocument(testClassUpdated.project, editor.document)
+                    run(THREAD_POOL) {
+                        IntentionHelper(model.project, editor, file).applyIntentions()
+                        run(EDT_LATER) {
+                            runWriteCommandAction(testClassUpdated.project, "UtBot tests reformatting", null, {
+                                reformat(model, file, testClassUpdated)
+                            })
+                            unblockDocument(testClassUpdated.project, editor.document)
 
-                    // uploading formatted code
-                    val testsCodeWithTestReportFormatted =
-                        testsCodeWithTestReport.copy(generatedCode = file.text)
+                            // uploading formatted code
+                            val testsCodeWithTestReportFormatted =
+                                testsCodeWithTestReport.copy(generatedCode = file.text)
 
-                    // creating and saving reports
-                    reports += testsCodeWithTestReportFormatted.testsGenerationReport
+                            // creating and saving reports
+                            reports += testsCodeWithTestReportFormatted.testsGenerationReport
 
-                    saveSarifReport(
-                        testClassUpdated,
-                        testSets,
-                        model,
-                        testsCodeWithTestReportFormatted,
-                    )
+                            saveSarifReport(
+                                testClassUpdated,
+                                testSets,
+                                model,
+                                testsCodeWithTestReportFormatted,
+                            )
 
-                    reportsCountDown.countDown()
+                            reportsCountDown.countDown()
 
-                    unblockDocument(testClassUpdated.project, editor.document)
+                            unblockDocument(testClassUpdated.project, editor.document)
+                        }
+                    }
                 }
             }
         }
