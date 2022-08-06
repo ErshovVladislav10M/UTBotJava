@@ -573,7 +573,7 @@ sealed class GoClassId(private val goName: String) : ClassId(goName) {
 // Represents real Go type.
 class GoTypeId(
     goName: String,
-    val correspondingKClass: KClass<out Any>? = null,
+    val correspondingKClass: KClass<out Any>? = null, // TODO: move to outer function
     val isErrorType: Boolean = goName == "error"
 ) : GoClassId(goName)
 
