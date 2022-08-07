@@ -7,6 +7,7 @@ import com.intellij.openapi.command.WriteCommandAction.runWriteCommandAction
 import com.intellij.openapi.command.executeCommand
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.*
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.concurrency.AppExecutorUtil
@@ -18,6 +19,7 @@ import org.utbot.go.codegen.GoSimpleCodeGenerator
 import org.utbot.intellij.plugin.go.GoTestsModel
 import org.utbot.intellij.plugin.ui.utils.showErrorDialogLater
 import java.io.File
+import java.nio.file.Paths
 
 // TODO: get rid of IDEA plugin here and move to utbot-go module
 // This class is highly inspired by CodeGenerationController
@@ -36,27 +38,33 @@ object GoCodeGenerationController {
 
     fun generateTestsFilesAndCode(
         model: GoTestsModel,
-        testCasesByFile: Map<PsiFile, List<GoFuzzedFunctionOrMethodTestCase>>
+        testCasesByFile: Map<String, List<GoFuzzedFunctionOrMethodTestCase>>
     ) {
-        for (srcFile in testCasesByFile.keys) {
-            val fileTestCases = testCasesByFile[srcFile] ?: continue
+        for (srcFilePath in testCasesByFile.keys) {
+            val fileTestCases = testCasesByFile[srcFilePath] ?: continue
+            val testFileName = createTestFileName(srcFilePath)
             try {
-                val testFile = createTestFileNearToSource(srcFile) ?: continue
+                val srcFile = findPsiFileByPath(model, srcFilePath)
+                val testFile = createTestFileNearToSource(srcFile, testFileName) ?: continue
                 runWriteCommandAction(model.project, "Generate Go tests with UtBot", null, {
                     try {
                         generateCode(testFile, fileTestCases)
                     } catch (e: IncorrectOperationException) {
-                        showCreatingFileError(model.project, createTestFileName(srcFile))
+                        showCreatingFileError(model.project, testFileName)
                     }
                 })
             } catch (e: IncorrectOperationException) {
-                showCreatingFileError(model.project, createTestFileName(srcFile))
+                showCreatingFileError(model.project, testFileName)
             }
         }
     }
 
-    private fun createTestFileNearToSource(srcFile: PsiFile): PsiFile? {
-        val testFileName = createTestFileName(srcFile)
+    private fun findPsiFileByPath(model: GoTestsModel, srcFilePath: String): PsiFile {
+        val virtualFile = VirtualFileManager.getInstance().findFileByNioPath(Paths.get(srcFilePath))!!
+        return PsiManager.getInstance(model.project).findFile(virtualFile)!!
+    }
+
+    private fun createTestFileNearToSource(srcFile: PsiFile, testFileName: String): PsiFile? {
         val testFileNameWithExtension = testFileName + CodegenLanguage.GO.extension
         val srcFilePackage = srcFile.containingDirectory
 
@@ -66,7 +74,7 @@ object GoCodeGenerationController {
         return srcFilePackage.findFile(testFileNameWithExtension)
     }
 
-    private fun createTestFileName(srcFile: PsiFile) = File(srcFile.name).nameWithoutExtension + "_go_ut_test"
+    private fun createTestFileName(srcFilePath: String) = File(srcFilePath).nameWithoutExtension + "_go_ut_test"
 
     private fun generateCode(
         testFile: PsiFile,

@@ -1,5 +1,7 @@
 package main
 
+import "go/token"
+
 type ParsedType struct {
 	Name            string `json:"name"`
 	ImplementsError bool   `json:"implementsError"`
@@ -14,6 +16,7 @@ type ParsedFunction struct {
 	Name        string                    `json:"name"`
 	Parameters  []ParsedFunctionParameter `json:"parameters"`
 	ResultTypes []ParsedType              `json:"resultTypes"`
+	position    token.Pos
 }
 
 type ParsingResult struct {

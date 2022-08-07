@@ -14,6 +14,12 @@ fun goFuzzing(
     functionOrMethodNode: GoFunctionOrMethodNode
 ): Sequence<List<FuzzedValue>> {
 
+    /* Unit test generation for functions or methods with no parameters can be useful:
+    * one can fix panic behaviour or its absence */
+    if (functionOrMethodNode.parameters.isEmpty()) {
+        return sequenceOf(emptyList())
+    }
+
     // find concrete values in function or method body
     functionOrMethodNode.body.accept(DummyGoAstVisitor)
 

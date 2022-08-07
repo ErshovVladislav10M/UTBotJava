@@ -176,12 +176,13 @@ object GoSimpleCodeGenerator {
         bodySb.append("\t$actualFunctionCall\n\n")
 
         val expectedModels = (executionResult as GoUtExecutionCompleted).models
-        val (assertName, tParameter) = if (expectedModels.size > 1) {
-            bodySb.append("\tassertMultiple := assert.New(t)\n")
-            "assertMultiple" to ""
-        } else {
-            "assert" to "t, "
-        }
+        val (assertName, tParameter) =
+            if (expectedModels.size > 1 || expectedModels.any { it.isComplexModelAndNeedsSeparateAssertions() }) {
+                bodySb.append("\tassertMultiple := assert.New(t)\n")
+                "assertMultiple" to ""
+            } else {
+                "assert" to "t, "
+            }
         actualRvVariablesNames.zip(expectedModels).zip(isErrorReturnTypes)
             .forEach { (variableAndModel, isErrorReturnType) ->
                 val (actualRvVariableName, expectedModel) = variableAndModel
@@ -197,9 +198,10 @@ object GoSimpleCodeGenerator {
                     assertionMethodCalls.add(code)
                 }
 
-                if (expectedModel is GoUtComplexModel && expectedModel.containsNaNOrInf()) {
-                    generateAssertionMethodCall(expectedModel.realValue, "real($actualRvVariableName)")
-                    generateAssertionMethodCall(expectedModel.imagValue, "imag($actualRvVariableName)")
+                if (expectedModel.isComplexModelAndNeedsSeparateAssertions()) {
+                    val complexModel = expectedModel as GoUtComplexModel
+                    generateAssertionMethodCall(complexModel.realValue, "real($actualRvVariableName)")
+                    generateAssertionMethodCall(complexModel.imagValue, "imag($actualRvVariableName)")
                 } else {
                     generateAssertionMethodCall(expectedModel, actualRvVariableName)
                 }
@@ -209,6 +211,9 @@ object GoSimpleCodeGenerator {
 
         return "$testFunctionSignatureDeclaration {\n$testFunctionBody}"
     }
+
+    private fun GoUtModel.isComplexModelAndNeedsSeparateAssertions(): Boolean =
+        this is GoUtComplexModel && this.containsNaNOrInf()
 
     private fun generateTestFunctionForPanicFailureTestCase(
         testCase: GoFuzzedFunctionOrMethodTestCase,

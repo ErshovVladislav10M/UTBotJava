@@ -2,6 +2,7 @@ package main
 
 import (
 	"go/types"
+	"sort"
 )
 
 func implementsError(typ types.Type) bool {
@@ -27,13 +28,13 @@ func toParsedType(typ types.Type) ParsedType {
 	}
 }
 
-// for now supports only basic and error types
-func checkTypeIsSupported(typ types.Type) bool {
+// for now supports only basic and error result types
+func checkTypeIsSupported(typ types.Type, isResultType bool) bool {
 	underlyingType := typ.Underlying() // analyze real type, not alias or defined type
 	if _, ok := underlyingType.(*types.Basic); ok {
 		return true
 	}
-	if implementsError(underlyingType) {
+	if isResultType && implementsError(underlyingType) {
 		return true
 	}
 	return false
@@ -52,7 +53,7 @@ func checkIsSupported(signature *types.Signature) bool {
 	if results := signature.Results(); results != nil {
 		for i := 0; i < results.Len(); i++ {
 			result := results.At(i)
-			if !checkTypeIsSupported(result.Type()) {
+			if !checkTypeIsSupported(result.Type(), true) {
 				return false
 			}
 		}
@@ -60,7 +61,7 @@ func checkIsSupported(signature *types.Signature) bool {
 	if parameters := signature.Params(); parameters != nil {
 		for i := 0; i < parameters.Len(); i++ {
 			parameter := parameters.At(i)
-			if !checkTypeIsSupported(parameter.Type()) {
+			if !checkTypeIsSupported(parameter.Type(), false) {
 				return false
 			}
 		}
@@ -91,6 +92,7 @@ func collectSelectedParsedFunctions(info *types.Info, selectedFunctionsNames []s
 				Name:        typedObj.Name(),
 				Parameters:  []ParsedFunctionParameter{},
 				ResultTypes: []ParsedType{},
+				position:    typedObj.Pos(),
 			}
 
 			if !selectAll {
@@ -132,6 +134,11 @@ func collectSelectedParsedFunctions(info *types.Info, selectedFunctionsNames []s
 			notFoundFunctionsNames = append(notFoundFunctionsNames, functionName)
 		}
 	}
+	sort.Slice(parsedFunctions, func(i, j int) bool {
+		return parsedFunctions[i].position < parsedFunctions[j].position
+	})
+	sort.Sort(sort.StringSlice(notSupportedFunctionsNames))
+	sort.Sort(sort.StringSlice(notFoundFunctionsNames))
 
 	return parsedFunctions, notSupportedFunctionsNames, notFoundFunctionsNames
 }

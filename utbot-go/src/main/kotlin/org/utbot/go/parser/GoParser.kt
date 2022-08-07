@@ -129,11 +129,4 @@ object GoParser {
             parsingResultsFile.delete()
         }
     }
-
-}
-
-fun main() {
-    val targets =
-        mapOf("/home/gleb/tabs/example/types/primitives.go" to listOf("squareComplex128", "FullName", "unknown"))
-    println(GoParser.parseGoSourceFilesForFunctions(targets))
 }

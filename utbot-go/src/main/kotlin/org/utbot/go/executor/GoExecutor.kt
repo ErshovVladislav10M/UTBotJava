@@ -156,6 +156,7 @@ object GoExecutor {
             }
         """.trimIndent()
 
+        // TODO: check "error" case more carefully
         val valueToStringFunctionDeclaration = """
             func __valueToStringForUtGoExecutor__(value any) string {
             	const outputComplexPartsDelimiter = "%__go_exec_complex_parts_delim__%"
@@ -174,6 +175,8 @@ object GoExecutor {
             		return __float32ValueToStringForUtGoExecutor__(typedValue)
             	case string:
             		return fmt.Sprintf("%#v", typedValue)
+                case error:
+                    return fmt.Sprintf("%#v", typedValue.Error())
             	default:
             		return fmt.Sprintf("%v", typedValue)
             	}
@@ -187,10 +190,9 @@ object GoExecutor {
             }
         """.trimIndent()
 
-        val printDelimiterOrExitFunctionDeclaration = """
-            func __printDelimiterToUtGoExecutorOrExit__(writer io.Writer) {
-            	const outputDelimiter = "${Constants.DELIMITER_CODE}"
-            	_, err := fmt.Fprint(writer, outputDelimiter)
+        val printOutputCodeOrExitFunctionDeclaration = """
+            func __printOutputCodeToUtGoExecutorOrExit__(writer io.Writer, outputCode string) {
+            	_, err := fmt.Fprint(writer, outputCode)
             	__checkErrorAndExitToUtGoExecutor__(err)
             }
         """.trimIndent()
@@ -198,13 +200,14 @@ object GoExecutor {
         val printValueFunctionDeclaration = """
             func __printValueToUtGoExecutor__(writer io.Writer, value any, printPostfixSeparator bool) {
                 const outputNil = "${Constants.NIL_VALUE_CODE}"
+                const outputDelimiter = "${Constants.DELIMITER_CODE}"
                 if value == nil {
-                    __printToUtGoExecutorOrExit__(writer, outputNil)
+                    __printOutputCodeToUtGoExecutorOrExit__(writer, outputNil)
                 } else {
                     __printToUtGoExecutorOrExit__(writer, value)
                 }
                 if printPostfixSeparator {
-                    __printDelimiterToUtGoExecutorOrExit__(writer)
+                    __printOutputCodeToUtGoExecutorOrExit__(writer, outputDelimiter)
                 }
             }
         """.trimIndent()
@@ -278,7 +281,7 @@ object GoExecutor {
             float32ToStringFunctionDeclaration,
             valueToStringFunctionDeclaration,
             printOrExitFunctionDeclaration,
-            printDelimiterOrExitFunctionDeclaration,
+            printOutputCodeOrExitFunctionDeclaration,
             printValueFunctionDeclaration,
             createWriterFunctionDeclaration,
             closeWriterFunctionDeclaration,
