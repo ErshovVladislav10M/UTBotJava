@@ -49,7 +49,6 @@ class JsCodeGenerator(
     ): TestsCodeWithTestReport = withCustomContext(testClassCustomName) {
         context.withClassScope {
             val testClassFile = CgTestClassConstructor(context).construct(cgTestSets)
-            // TODO: fix generatedCode param
             TestsCodeWithTestReport(renderClassFile(testClassFile), testClassFile.testsGenerationReport)
         }
     }

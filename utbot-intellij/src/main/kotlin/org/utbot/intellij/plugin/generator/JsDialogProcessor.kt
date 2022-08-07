@@ -12,14 +12,19 @@ import com.oracle.js.parser.ErrorManager
 import com.oracle.js.parser.Parser
 import com.oracle.js.parser.ScriptEnvironment
 import com.oracle.js.parser.Source
+import com.oracle.js.parser.ir.ClassNode
 import com.oracle.js.parser.ir.FunctionNode
+import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer.jsFuzzing
+import java.io.File
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsPrimitiveModel
+import org.utbot.framework.plugin.api.UtAssembleModel
+import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.fuzzer.FuzzedMethodDescription
@@ -73,6 +78,7 @@ object JsDialogProcessor {
         TernService.filePathToInference = containingFilePath
         TernService.projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path.")
         TernService.run()
+        val fileText = File(containingFilePath).readText()
         model.selectedMethods?.forEach { jsMemberInfo ->
             var parentPsi = PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java)
             // "toplevelHack" is from JsActionMethods
@@ -80,8 +86,8 @@ object JsDialogProcessor {
                 parentPsi = null
             }
             val funcNode = getFunctionNode(jsMemberInfo, parentPsi?.name)
+            val classNode = if (parentPsi != null)JsParserUtils.searchForClassDecl(parentPsi.name!!, containingFilePath) else null
             val classId = parentPsi?.let {
-                val classNode = JsParserUtils.searchForClassDecl(it.name!!, containingFilePath)
                 JsClassId(it.name!!).constructClass(classNode)
             } ?: JsClassId("undefined").constructClass(functions = listOf(funcNode))
             val execId = classId.allMethods.find {
@@ -101,7 +107,7 @@ object JsDialogProcessor {
             randomParams.forEach { param ->
                 // Hack: Should create one file with all functions to run? TODO MINOR: think
                 val utConstructor = JsUtModelConstructor()
-                val (returnValue, valueClassId) = runJs(param, funcNode, jsMemberInfo.member.text).toAny()
+                val (returnValue, valueClassId) = runJs(param, funcNode, classNode?.ident?.name, fileText).toAny()
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val initEnv = EnvironmentModels(null, param.map { it.model }, mapOf())
                 testsForGenerator.add(
@@ -117,7 +123,7 @@ object JsDialogProcessor {
             }
             val testSet = CgMethodTestSet(
                 execId,
-                listOf(testsForGenerator.first())
+                testsForGenerator
             )
             val codeGen = JsCodeGenerator(
                 classId,
@@ -131,31 +137,51 @@ object JsDialogProcessor {
 
     private fun getRandomNumFuzzedValues(fuzzedValues: List<List<FuzzedValue>>): List<List<FuzzedValue>> {
         val newFuzzedValues = mutableListOf<List<FuzzedValue>>()
-        for (i in 0..10) {
+        for (i in 0..minOf(10, fuzzedValues.size)) {
             newFuzzedValues.add(fuzzedValues[Random.nextInt(fuzzedValues.size)])
         }
         return newFuzzedValues
     }
 
-    private fun runJs(fuzzedValues: List<FuzzedValue>, method: FunctionNode, funcString: String): Value {
+    private fun runJs(fuzzedValues: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String): Value {
         val context = Context.newBuilder("js").build()
-        val str = makeStringForRunJs(fuzzedValues, method, funcString)
+        val str = makeStringForRunJs(fuzzedValues, method, containingClass, fileText)
         return context.eval("js", str)
     }
 
-    private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: FunctionNode, funcString: String): String {
-        val callString = makeCallFunctionString(fuzzedValue, method)
-        return """function $funcString
-                  $callString""".trimIndent()
+    private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String): String {
+        val callString = makeCallFunctionString(fuzzedValue, method, containingClass)
+        val res = buildString {
+            append(fileText)
+            append("\n")
+            append(callString)
+        }
+        return res
     }
 
-    private fun makeCallFunctionString(fuzzedValue: List<FuzzedValue>, method: FunctionNode): String {
-        var callString = "${method.name}("
+    private fun makeCallFunctionString(fuzzedValue: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?): String {
+        val initClass = containingClass?.let {
+            "new ${it}."
+        } ?: ""
+        var callString = "$initClass${method.name}("
         fuzzedValue.forEach { value ->
             // Explicit string wrap with "" is needed.
-            callString += when ((value.model as JsPrimitiveModel).value) {
-                is String -> "\"${(value.model as JsPrimitiveModel).value}\","
-                else -> "${(value.model as JsPrimitiveModel).value},"
+            if (value.model is UtAssembleModel) {
+                val model = value.model as UtAssembleModel
+                callString += "new ${model.classId.name}("
+                (model.instantiationChain.first() as UtExecutableCallModel).params.forEach {
+                    callString += when ((it as JsPrimitiveModel).value) {
+                        is String -> "\"${(it).value}\","
+                        else -> "${(it).value},"
+                    }
+                }
+                callString = callString.dropLast(1)
+                callString += "),"
+            } else {
+                callString += when ((value.model as JsPrimitiveModel).value) {
+                    is String -> "\"${(value.model as JsPrimitiveModel).value}\","
+                    else -> "${(value.model as JsPrimitiveModel).value},"
+                }
             }
         }
         callString = callString.dropLast(1)
@@ -176,5 +202,4 @@ object JsDialogProcessor {
         fileNode.accept(visitor)
         return visitor.targetFunctionNode
     }
-
 }

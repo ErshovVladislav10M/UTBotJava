@@ -96,7 +96,7 @@ class CgTestClassConstructor(val context: CgContext) :
                         runCatching {
                             currentTestCaseTestMethods += methodConstructor.createTestMethod(methodUnderTest, testSet.executions[i])
                         }.onFailure {
-                                e -> processFailure(testSet, e)
+                                e -> e.printStackTrace()
                         }
                     }
                     val clusterHeader = clusterSummary?.header

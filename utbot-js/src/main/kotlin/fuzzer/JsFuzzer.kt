@@ -2,6 +2,7 @@ package fuzzer
 
 import fuzzer.providers.JsConstantsModelProvider
 import fuzzer.providers.JsMultipleTypesModelProvider
+import fuzzer.providers.JsObjectModelProvider
 import fuzzer.providers.JsPrimitivesModelProvider
 import fuzzer.providers.JsStringModelProvider
 import fuzzer.providers.JsUndefinedModelProvider
@@ -22,6 +23,7 @@ object JsFuzzer {
                 JsStringModelProvider,
                 JsMultipleTypesModelProvider,
                 JsPrimitivesModelProvider,
+                JsObjectModelProvider,
             )
         )
         return fuzz(methodUnderTestDescription, modelProviderWithFallback)

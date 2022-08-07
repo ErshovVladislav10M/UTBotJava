@@ -72,7 +72,7 @@ fun objectModelProviders(idGenerator: IntSupplier = SimpleIdGenerator()): ModelP
     )
 }
 
-private class SimpleIdGenerator : IntSupplier {
+class SimpleIdGenerator : IntSupplier {
     private val id = AtomicInteger()
     override fun getAsInt() = id.incrementAndGet()
 }

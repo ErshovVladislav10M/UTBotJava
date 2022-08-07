@@ -11,16 +11,18 @@ fun Value.toAny(): Pair<Any?, JsClassId> {
         isBoolean -> asBoolean() to jsBooleanClassId
         isString -> asString() to jsStringClassId
         isNumber -> {
-            when {
-                fitsInByte() -> asByte()
-                fitsInShort() -> asShort()
-                fitsInInt() -> asInt()
-                fitsInLong() -> asLong()
-                fitsInFloat() -> asFloat()
-                fitsInDouble() -> asDouble()
-                // TODO: Don't forget about infinities, NaN, etc.
-                else -> throw Exception("Not implemented yet")
-            } to jsNumberClassId
+            val str = toString()
+            if (str.contains('.')) {
+                asDouble() to jsNumberClassId
+            } else {
+                (str.toByteOrNull() ?:
+                str.toShortOrNull() ?:
+                str.toIntOrNull() ?:
+                str.toLongOrNull() ?:
+                // TODO SEVERE: extend this
+                throw IllegalStateException("Number too big")) to jsNumberClassId
+
+            }
         }
         isNull -> null to JsClassId("null")
         else -> throw Exception("Not implemented yet")

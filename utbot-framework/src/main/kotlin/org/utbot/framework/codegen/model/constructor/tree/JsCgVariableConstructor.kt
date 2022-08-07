@@ -22,7 +22,7 @@ internal class JsCgVariableConstructor(ctx: CgContext): CgVariableConstructor(ct
         return if (model is UtReferenceModel) valueByModelId.getOrPut(model.id) {
             when (model) {
                 is UtCompositeModel -> TODO()
-                is UtAssembleModel -> TODO()
+                is UtAssembleModel -> constructAssemble(model, baseName)
                 is UtArrayModel -> TODO()
             }
         } else valueByModel.getOrPut(model) {

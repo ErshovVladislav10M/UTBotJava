@@ -663,7 +663,7 @@ class JsConstructorId(
 ) : ConstructorId(classId, parameters) {
 
     override val returnType: JsClassId
-        get() = jsUndefinedClassId
+        get() = classId
 
     override val isPrivate: Boolean
         get() = throw UnsupportedOperationException("JavaScript does not support private constructors.")
