@@ -14,6 +14,7 @@ import com.oracle.js.parser.Source
 import com.oracle.js.parser.ir.FunctionNode
 import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer.jsFuzzing
+import fuzzer.providers.JsObjectModelProvider
 import java.io.File
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
@@ -39,7 +40,11 @@ import utils.constructClass
 import utils.toAny
 import java.nio.file.Paths
 import org.utbot.framework.plugin.api.JsMethodId
+import org.utbot.framework.plugin.api.UtNullModel
+import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.isJsBasic
+import org.utbot.framework.plugin.api.util.voidClassId
+import org.utbot.fuzzer.providers.ObjectModelProvider
 import kotlin.random.Random
 
 object JsDialogProcessor {
@@ -123,11 +128,20 @@ object JsDialogProcessor {
             randomParams.forEach { param ->
                 // Hack: Should create one file with all functions to run? TODO MINOR: think
                 val utConstructor = JsUtModelConstructor()
-                val (returnValue, valueClassId) = runJs(param, funcNode, classNode?.ident?.name, trimmedFileText,
+                val (returnValue, valueClassId) = runJs(param, execId, classNode?.ident?.name, trimmedFileText,
                     containingFilePath.replaceAfterLast("/", "")
                 ).toAny()
                 val result = utConstructor.construct(returnValue, valueClassId)
-                val initEnv = EnvironmentModels(null, param.map { it.model }, mapOf())
+                val thisInstance = when {
+                    execId.isStatic -> null
+                    else -> {
+                        JsObjectModelProvider.generate(
+                            FuzzedMethodDescription("thisInstance", voidClassId, listOf(classId), JsFuzzerAstVisitor.fuzzedConcreteValues)
+                        ).take(10).toList()
+                            .shuffled().map { it.value.model }.first()
+                    }
+                }
+                val initEnv = EnvironmentModels(thisInstance, param.map { it.model }, mapOf())
                 testsForGenerator.add(
                     UtExecution(
                         stateBefore = initEnv,
@@ -147,10 +161,10 @@ object JsDialogProcessor {
                 classId,
                 mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
             )
-            val opachki = codeGen.generateAsStringWithTestReport(listOf(testSet))
+            val generatedCode = codeGen.generateAsStringWithTestReport(listOf(testSet)).generatedCode
             val fileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
             val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$fileName")
-            testFile.writeText(opachki.generatedCode)
+            testFile.writeText(generatedCode)
             testFile.createNewFile()
         }
     }
@@ -200,7 +214,7 @@ object JsDialogProcessor {
         return newFuzzedValues
     }
 
-    private fun runJs(fuzzedValues: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String, workDir: String): Value {
+    private fun runJs(fuzzedValues: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?, fileText: String, workDir: String): Value {
         val context = Context.newBuilder("js")
             .allowIO(true)
             .currentWorkingDirectory(Paths.get(workDir))
@@ -211,7 +225,7 @@ object JsDialogProcessor {
         return context.eval(source)
     }
 
-    private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String): String {
+    private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?, fileText: String): String {
         val callString = makeCallFunctionString(fuzzedValue, method, containingClass)
         val res = buildString {
             append(fileText)
@@ -221,9 +235,11 @@ object JsDialogProcessor {
         return res
     }
 
-    private fun makeCallFunctionString(fuzzedValue: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?): String {
+    private fun makeCallFunctionString(fuzzedValue: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?): String {
         val initClass = containingClass?.let {
-            "new ${it}()."
+            if (!method.isStatic) {
+                "new ${it}()."
+            } else "$it."
         } ?: ""
         var callString = "$initClass${method.name}("
         fuzzedValue.forEach { value ->

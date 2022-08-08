@@ -14,7 +14,8 @@ fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<Funct
             JsClassId(name),
             funcNode.name.toString(),
             types.returnType,
-            types.parameters
+            types.parameters,
+            it.isStatic,
         )
     }?.asSequence() ?:
         // used for toplevel functions
@@ -24,7 +25,8 @@ fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<Funct
                 JsClassId(name),
                 funcNode.name.toString(),
                 types.returnType,
-                types.parameters
+                types.parameters,
+                true
             )
         }.asSequence()
 

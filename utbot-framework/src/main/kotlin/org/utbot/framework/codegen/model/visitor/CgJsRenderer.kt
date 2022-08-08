@@ -276,11 +276,14 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         } else {
             // for static methods render declaring class only if required
             val method = element.executableId
-            if (method.classId.toString() == "assert.equal") {
+            // TODO SEVERE: refactor this spaghetti code
+            if (method.isStatic) {
+                val line = if (method.classId.toString() == "undefined") "" else "${method.classId}."
+                print("fileUnderTest.$line")
+            } else if (method.classId.toString() == "assert.equal") {
                 print("assert.equal")
             } else if (method.classId.toString() != "undefined") {
-                print("new fileUnderTest.${method.classId}()")
-                print(".")
+                print("new fileUnderTest.${method.classId}().")
             } else {
                 print("fileUnderTest.")
             }
