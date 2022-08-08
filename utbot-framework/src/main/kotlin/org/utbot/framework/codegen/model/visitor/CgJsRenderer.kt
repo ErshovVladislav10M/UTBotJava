@@ -44,6 +44,7 @@ import org.utbot.framework.codegen.model.tree.CgVariable
 import org.utbot.framework.codegen.model.util.CgPrinter
 import org.utbot.framework.codegen.model.util.CgPrinterImpl
 import org.utbot.framework.plugin.api.CodegenLanguage
+import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.TypeParameters
 
 internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterImpl()) : CgAbstractRenderer(context, printer) {
@@ -177,9 +178,11 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         element.values.renderElements(elementsInLine)
     }
 
+    @Suppress("DuplicatedCode")
     override fun visit(element: CgTestClassFile) {
-        // TODO: render imports
-        //renderClassFileImports(element)
+        println("import * as assert from \"assert\"")
+        println("import * as fileUnderTest from \"./${(context.classUnderTest as JsClassId).filePath.substringAfterLast("/")}\"")
+        println()
         element.testClass.accept(this)
     }
 
@@ -194,6 +197,7 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         visit(element.statements, printNextLine = true)
     }
 
+    @Suppress("DuplicatedCode")
     override fun visit(element: CgSwitchCase) {
         print("switch (")
         element.value.accept(this)
@@ -272,9 +276,13 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         } else {
             // for static methods render declaring class only if required
             val method = element.executableId
-            if (method.classId.toString() != "undefined") {
-                print(method.classId.toString())
+            if (method.classId.toString() == "assert.equal") {
+                print("assert.equal")
+            } else if (method.classId.toString() != "undefined") {
+                print("new fileUnderTest.${method.classId}()")
                 print(".")
+            } else {
+                print("fileUnderTest.")
             }
         }
         print(element.executableId.name.escapeNamePossibleKeyword())

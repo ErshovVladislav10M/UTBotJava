@@ -1,6 +1,7 @@
 package org.utbot.framework.codegen.model.constructor.tree
 
 import org.utbot.framework.codegen.Junit4
+import org.utbot.framework.codegen.Junit4.jsAssertEquals
 import org.utbot.framework.codegen.Junit5
 import org.utbot.framework.codegen.TestNg
 import org.utbot.framework.codegen.model.constructor.builtin.arraysDeepEqualsMethodId
@@ -309,6 +310,10 @@ internal class MochaManager(context: CgContext): TestFrameworkManager(context) {
     override fun expectException(exception: ClassId, block: () -> Unit) {
         require(testFramework is Mocha) { "According to settings, Mocha.js was expected, but got: $testFramework" }
         block()
+    }
+
+    override fun assertEquals(expected: CgValue, actual: CgValue) {
+        +assertions[jsAssertEquals](expected, actual)
     }
 
     override fun disableTestMethod(reason: String) {

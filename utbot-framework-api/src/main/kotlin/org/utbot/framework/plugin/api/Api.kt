@@ -28,7 +28,6 @@ import org.utbot.framework.plugin.api.util.isPrimitive
 import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.framework.plugin.api.util.longClassId
 import org.utbot.framework.plugin.api.util.method
-import org.utbot.framework.plugin.api.util.objectClassId
 import org.utbot.framework.plugin.api.util.primitiveTypeJvmNameOrNull
 import org.utbot.framework.plugin.api.util.safeJField
 import org.utbot.framework.plugin.api.util.shortClassId
@@ -51,7 +50,6 @@ import soot.jimple.JimpleBody
 import soot.jimple.Stmt
 import java.io.File
 import java.lang.reflect.Modifier
-import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 import org.utbot.framework.plugin.api.util.toJsClassId
 import kotlin.jvm.internal.CallableReference
 import kotlin.reflect.KCallable
@@ -572,7 +570,8 @@ open class JsClassId(
     private val jsName: String,
     private val methods: Sequence<JsMethodId> = emptySequence(),
     private val constructor: JsConstructorId? = null,
-    private val classPackageName: String = "",
+    private val classPackagePath: String = "",
+    private val classFilePath: String = "",
 ) : ClassId(jsName) {
     override val simpleName: String
         get() = jsName
@@ -584,7 +583,7 @@ open class JsClassId(
         get() = if (constructor == null) emptySequence() else sequenceOf(constructor)
 
     override val packageName: String
-        get() = classPackageName
+        get() = classPackagePath
 
     override val canonicalName: String
         get() = jsName
@@ -632,6 +631,9 @@ open class JsClassId(
 
     override val outerClass: Class<*>?
         get() = null
+
+    val filePath: String
+        get() = classFilePath
 
 }
 

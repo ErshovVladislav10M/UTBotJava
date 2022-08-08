@@ -202,7 +202,6 @@ open class TestCaseGenerator(
         }
         ConcreteExecutor.defaultPool.close() // TODO: think on appropriate way to close child processes
 
-
         return methods.map { method ->
             UtMethodTestSet(
                 method,

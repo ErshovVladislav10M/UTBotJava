@@ -96,20 +96,23 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     private fun configureTestFramework() {
         val selectedTestFramework = testFrameworks.item
         selectedTestFramework.isInstalled = true
-        JsCmdExec.runCommand("npm install -l ${selectedTestFramework.displayName.toLowerCase()}")
+        JsCmdExec.runCommand("npm install -l ${selectedTestFramework.displayName.toLowerCase()}",
+            model.containingFilePath.replaceAfterLast("/", "")
+        )
     }
 
     private fun configureTestFrameworkIfRequired() {
         initTestFrameworkPresenceThread.join()
         val frameworkNotInstalled = !testFrameworks.item.isInstalled
-        if (frameworkNotInstalled && createTestFrameworkNotificationDialog() == Messages.YES) {
-            (object : Task.Backgroundable(model.project, "Install test framework package") {
-                override fun run(indicator: ProgressIndicator) {
-                    indicator.text = "Installing ${testFrameworks.item.displayName} npm package"
-                    configureTestFramework()
-                }
-
-            }).queue()
+        if (frameworkNotInstalled) {
+            if (createTestFrameworkNotificationDialog() == Messages.YES) {
+                (object : Task.Backgroundable(model.project, "Install test framework package") {
+                    override fun run(indicator: ProgressIndicator) {
+                        indicator.text = "Installing ${testFrameworks.item.displayName} npm package"
+                        configureTestFramework()
+                    }
+                }).queue()
+            }
         }
     }
 
@@ -123,7 +126,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     )
 
     private fun findFrameworkLibrary(npmPackageName: String): Boolean {
-        val bufferedReader = JsCmdExec.runCommand("npm list")
+        val bufferedReader = JsCmdExec.runCommand("npm list -l", model.containingFilePath.replaceAfterLast("/", ""))
         val checkForPackageText = bufferedReader.readText()
         bufferedReader.close()
         if (checkForPackageText == "") {

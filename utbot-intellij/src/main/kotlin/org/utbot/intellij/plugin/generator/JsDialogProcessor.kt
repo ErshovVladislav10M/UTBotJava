@@ -19,6 +19,7 @@ import fuzzer.JsFuzzer.jsFuzzing
 import java.io.File
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
+import org.jetbrains.kotlin.idea.util.application.runWriteAction
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
 import org.utbot.framework.plugin.api.JsClassId
@@ -38,6 +39,9 @@ import parser.JsParserUtils
 import utils.TernService
 import utils.constructClass
 import utils.toAny
+import java.io.RandomAccessFile
+import java.nio.file.Path
+import java.nio.file.Paths
 import kotlin.random.Random
 
 object JsDialogProcessor {
@@ -49,7 +53,7 @@ object JsDialogProcessor {
         focusedMethod: JSMemberInfo?,
         containingFilePath: String,
     ) {
-        val dialogProcessor = createDialog(project, srcModule, fileMethods, focusedMethod)
+        val dialogProcessor = createDialog(project, srcModule, fileMethods, focusedMethod, containingFilePath)
         if (!dialogProcessor.showAndGet()) return
 
         createTests(dialogProcessor.model, containingFilePath)
@@ -60,6 +64,7 @@ object JsDialogProcessor {
         srcModule: Module,
         fileMethods: Set<JSMemberInfo>,
         focusedMethod: JSMemberInfo?,
+        filePath: String,
     ): JsDialogWindow {
         val testModel = srcModule.testModule(project)
 
@@ -70,23 +75,34 @@ object JsDialogProcessor {
                 testModel,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else null,
-            )
+            ).apply {
+                containingFilePath = filePath
+            }
         )
     }
 
     private fun createTests(model: JsTestsModel, containingFilePath: String) {
+        val fileText = File(containingFilePath).readText()
+        val regex = Regex("export")
+        // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
+        //  Also general trimming required, for example "export" keyword, etc.
+        val trimmedFileText = fileText.replace(regex, "")
         TernService.filePathToInference = containingFilePath
         TernService.projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path.")
+        TernService.trimmedFileText = trimmedFileText
         TernService.run()
-        val fileText = File(containingFilePath).readText()
         model.selectedMethods?.forEach { jsMemberInfo ->
             var parentPsi = PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java)
             // "toplevelHack" is from JsActionMethods
             if (parentPsi?.name == null || parentPsi.name == "toplevelHack") {
                 parentPsi = null
             }
-            val funcNode = getFunctionNode(jsMemberInfo, parentPsi?.name)
-            val classNode = if (parentPsi != null)JsParserUtils.searchForClassDecl(parentPsi.name!!, containingFilePath) else null
+            val funcNode = getFunctionNode(jsMemberInfo, parentPsi?.name, trimmedFileText)
+            val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(parentPsi.name!!, trimmedFileText) else null
+
+            val file = File(containingFilePath)
+            manageExports(file, classNode, funcNode)
+
             val classId = parentPsi?.let {
                 JsClassId(it.name!!).constructClass(classNode)
             } ?: JsClassId("undefined").constructClass(functions = listOf(funcNode))
@@ -107,7 +123,9 @@ object JsDialogProcessor {
             randomParams.forEach { param ->
                 // Hack: Should create one file with all functions to run? TODO MINOR: think
                 val utConstructor = JsUtModelConstructor()
-                val (returnValue, valueClassId) = runJs(param, funcNode, classNode?.ident?.name, fileText).toAny()
+                val (returnValue, valueClassId) = runJs(param, funcNode, classNode?.ident?.name, trimmedFileText,
+                    containingFilePath.replaceAfterLast("/", "")
+                ).toAny()
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val initEnv = EnvironmentModels(null, param.map { it.model }, mapOf())
                 testsForGenerator.add(
@@ -130,9 +148,52 @@ object JsDialogProcessor {
                 mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
             )
             val opachki = codeGen.generateAsStringWithTestReport(listOf(testSet))
-            println(opachki.generatedCode)
-            val NIHUYA = 1
+            val fileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
+            val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$fileName")
+            testFile.writeText(opachki.generatedCode)
+            testFile.createNewFile()
         }
+    }
+
+    private fun manageExports(file: File, classNode: ClassNode?, funcNode: FunctionNode) {
+        val startComment = "// Start of exports generated by UTBot"
+        val endComment = "// End of exports generated by UTBot"
+        val exportName = classNode?.ident?.name ?: funcNode.ident.name
+        val fileText = file.readText()
+        when {
+            fileText.contains("export {$exportName}") -> {
+                return
+            }
+            fileText.contains(startComment) && !fileText.contains("export {$exportName}") -> {
+                val regex = Regex("$startComment\n(.*)\n$endComment")
+                regex.find(fileText)?.groups?.get(1)?.value?.let {
+                    val swappedText = fileText.replace(it, "export{$exportName}")
+                    runWriteAction {
+                        file.writeText(swappedText)
+                    }
+                }
+                return
+            }
+            else -> {
+                runWriteAction {
+                    file.appendText("\n$startComment")
+                    file.appendText("\nexport {$exportName}")
+                    file.appendText("\n$endComment")
+                }
+            }
+        }
+        if (file.readText().contains("// Start of exports generated by UTBot"))
+            if (!file.readText().contains("// Start of exports generated by UTBot")) {
+                // TODO SEVERE: add check if object has already been imported
+                runWriteAction {
+                    file.appendText("\n// Start of exports generated by UTBot")
+                    file.appendText(
+                        "\n" +
+                                "export {${classNode?.ident?.name ?: funcNode.ident.name}}"
+                    )
+                    file.appendText("\n// End of exports generated by UTBot")
+                }
+            }
     }
 
     private fun getRandomNumFuzzedValues(fuzzedValues: List<List<FuzzedValue>>): List<List<FuzzedValue>> {
@@ -143,10 +204,15 @@ object JsDialogProcessor {
         return newFuzzedValues
     }
 
-    private fun runJs(fuzzedValues: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String): Value {
-        val context = Context.newBuilder("js").build()
+    private fun runJs(fuzzedValues: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String, workDir: String): Value {
+        val context = Context.newBuilder("js")
+            .allowIO(true)
+            .currentWorkingDirectory(Paths.get(workDir))
+            .build()
         val str = makeStringForRunJs(fuzzedValues, method, containingClass, fileText)
-        return context.eval("js", str)
+        val source = org.graalvm.polyglot.Source.newBuilder("js", str, "script")
+            .mimeType("application/javascript+module").build()
+        return context.eval(source)
     }
 
     private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?, fileText: String): String {
@@ -161,7 +227,7 @@ object JsDialogProcessor {
 
     private fun makeCallFunctionString(fuzzedValue: List<FuzzedValue>, method: FunctionNode, containingClass: TruffleString?): String {
         val initClass = containingClass?.let {
-            "new ${it}."
+            "new ${it}()."
         } ?: ""
         var callString = "$initClass${method.name}("
         fuzzedValue.forEach { value ->
@@ -189,16 +255,15 @@ object JsDialogProcessor {
         return callString
     }
 
-    private fun getFunctionNode(focusedMethod: JSMemberInfo, parentClassName: String?): FunctionNode {
-        val psiFile = PsiTreeUtil.getParentOfType(focusedMethod.member, JSFile::class.java) ?: throw IllegalStateException()
+    private fun getFunctionNode(focusedMethod: JSMemberInfo, parentClassName: String?, fileText: String): FunctionNode {
         Thread.currentThread().contextClassLoader = Context::class.java.classLoader
         val parser = Parser(
             ScriptEnvironment.builder().build(),
-            Source.sourceFor("jsFile", psiFile.text),
+            Source.sourceFor("jsFile", fileText),
             ErrorManager.ThrowErrorManager()
         )
         val fileNode = parser.parse()
-        val visitor = JsFunctionAstVisitor(focusedMethod.member.name!!, parentClassName ?: "toplevelHack")
+        val visitor = JsFunctionAstVisitor(focusedMethod.member.name!!, parentClassName)
         fileNode.accept(visitor)
         return visitor.targetFunctionNode
     }

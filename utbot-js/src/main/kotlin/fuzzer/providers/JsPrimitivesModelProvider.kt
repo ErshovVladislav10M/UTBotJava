@@ -2,10 +2,7 @@ package fuzzer.providers
 
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsPrimitiveModel
-import org.utbot.framework.plugin.api.util.jsBooleanClassId
-import org.utbot.framework.plugin.api.util.jsDoubleClassId
-import org.utbot.framework.plugin.api.util.jsNumberClassId
-import org.utbot.framework.plugin.api.util.stringClassId
+import org.utbot.framework.plugin.api.util.*
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedParameter
 import org.utbot.fuzzer.FuzzedValue
@@ -14,8 +11,9 @@ import org.utbot.fuzzer.ModelProvider.Companion.yieldValue
 
 object JsPrimitivesModelProvider : ModelProvider {
 
-    internal const val MAX_INT = 9007199254740991
-    internal const val MIN_INT = -9007199254740991
+    // TODO SEVERE: research overflows in js. For now these nums are low not to go beyond Long (will be fixed)
+    internal const val MAX_INT = 1024
+    internal const val MIN_INT = -1024
 
     override fun generate(description: FuzzedMethodDescription): Sequence<FuzzedParameter> = sequence {
         description.parametersMap.forEach { (classId, parameterIndices) ->
@@ -52,7 +50,7 @@ object JsPrimitivesModelProvider : ModelProvider {
 //                UtPrimitiveModel(Double.POSITIVE_INFINITY).fuzzed { summary = "%var% = Double.POSITIVE_INFINITY" },
 //                JsPrimitiveModel(Double.NaN).fuzzed { summary = "%var% = Double.NaN" },
             )
-            stringClassId -> primitivesForString()
+            jsStringClassId -> primitivesForString()
             else -> listOf()
         }
         return fuzzedValues

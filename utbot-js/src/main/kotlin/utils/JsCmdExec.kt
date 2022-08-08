@@ -11,6 +11,7 @@ object JsCmdExec {
             builder.directory(File(it))
         }
         val process = builder.start()
+        val lel = process.errorStream.bufferedReader().readText()
         return process.inputStream.bufferedReader()
     }
 }

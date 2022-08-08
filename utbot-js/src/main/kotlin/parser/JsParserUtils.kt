@@ -9,8 +9,7 @@ import java.io.File
 
 object JsParserUtils {
     // TODO SEVERE: function only works in the same file scope. Add search in exports.
-    fun searchForClassDecl(className: String, filePath: String): ClassNode {
-        val fileText = File(filePath).readText()
+    fun searchForClassDecl(className: String, fileText: String): ClassNode {
         val parser = Parser(
             ScriptEnvironment.builder().build(),
             Source.sourceFor("jsFile", fileText),

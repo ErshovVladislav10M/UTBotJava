@@ -25,7 +25,9 @@ object TernService {
 
     var filePathToInference = ""
 
-    private val utbotDir = "utbotJs"
+    var trimmedFileText = ""
+
+    const val utbotDir = "utbotJs"
 
     private fun ternScriptCode() = """
 // @ts-ignore        
@@ -168,7 +170,7 @@ test("$filePathToInference")
        return when {
             classId.isJsBasic || classId is JsMultipleClassId -> classId
             else -> {
-                val classNode = JsParserUtils.searchForClassDecl(name, filePathToInference)
+                val classNode = JsParserUtils.searchForClassDecl(name, trimmedFileText)
                 JsClassId(name).constructClass(classNode)
             }
         }

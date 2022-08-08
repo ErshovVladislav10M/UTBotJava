@@ -4,12 +4,7 @@ import org.utbot.framework.DEFAULT_CONCRETE_EXECUTION_TIMEOUT_IN_CHILD_PROCESS_M
 import org.utbot.framework.codegen.model.constructor.builtin.mockitoClassId
 import org.utbot.framework.codegen.model.constructor.builtin.ongoingStubbingClassId
 import org.utbot.framework.codegen.model.tree.CgClassId
-import org.utbot.framework.plugin.api.BuiltinClassId
-import org.utbot.framework.plugin.api.ClassId
-import org.utbot.framework.plugin.api.CodeGenerationSettingBox
-import org.utbot.framework.plugin.api.CodeGenerationSettingItem
-import org.utbot.framework.plugin.api.MethodId
-import org.utbot.framework.plugin.api.isolateCommandLineArgumentsToArgumentFile
+import org.utbot.framework.plugin.api.*
 import org.utbot.framework.plugin.api.util.*
 import java.io.File
 import org.utbot.framework.plugin.api.util.longClassId
@@ -168,6 +163,9 @@ sealed class TestFramework(
     abstract val methodSourceAnnotation: String
     abstract val methodSourceAnnotationId: ClassId
     abstract val methodSourceAnnotationFqn: String
+
+    val jsAssertEquals by lazy { JsMethodId(JsClassId("assert.equal"), "", jsUndefinedClassId, listOf(
+        jsUndefinedClassId, jsUndefinedClassId)) }
 
     val assertEquals by lazy { assertionId("assertEquals", objectClassId, objectClassId) }
 
@@ -517,6 +515,7 @@ object Mocha : TestFramework("Mocha") {
     override val parameterizedTestAnnotationFqn = "Parameterized tests are not supported for Mocha"
     override val methodSourceAnnotation = "Parameterized tests are not supported for Mocha"
     override val methodSourceAnnotationFqn = "Parameterized tests are not supported for Mocha"
+
     override fun getRunTestsCommand(
         executionInvoke: String,
         classPath: String,

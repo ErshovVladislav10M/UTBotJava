@@ -22,7 +22,7 @@ class JsFunctionAstVisitor(
 
     override fun enterFunctionNode(functionNode: FunctionNode?): Boolean {
         functionNode?.let {
-            if (it.name.toString() == target && className == lastVisitedClassName) {
+            if (it.name.toString() == target && (className ?: "") == lastVisitedClassName) {
                 targetFunctionNode = it
                 return false
             }

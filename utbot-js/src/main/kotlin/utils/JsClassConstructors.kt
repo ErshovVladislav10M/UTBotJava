@@ -39,6 +39,7 @@ fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<Funct
         methods,
         constructor,
         TernService.projectPath,
+        TernService.filePathToInference,
     )
     methods.forEach {
         it.classId = newClassId

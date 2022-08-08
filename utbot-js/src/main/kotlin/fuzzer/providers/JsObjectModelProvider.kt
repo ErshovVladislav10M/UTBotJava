@@ -52,7 +52,7 @@ object JsObjectModelProvider: ModelProvider {
 
     private fun assemble(id: Int, constructor: ConstructorId, values: List<FuzzedValue>): FuzzedValue {
         val instantiationChain = mutableListOf<UtStatementModel>()
-        return UtAssembleModel(
+        val model = UtAssembleModel(
             id,
             constructor.classId,
             "${constructor.classId.name}${constructor.parameters}#" + id.toString(16),
@@ -63,6 +63,7 @@ object JsObjectModelProvider: ModelProvider {
         }.fuzzed {
             summary = "%var% = ${constructor.classId.simpleName}(${constructor.parameters.joinToString { it.simpleName }})"
         }
+        return model
     }
 
     private fun FuzzedMethodDescription.fuzzParameters(constructorId: ConstructorId, vararg modelProviders: ModelProvider): Sequence<List<FuzzedValue>> {
