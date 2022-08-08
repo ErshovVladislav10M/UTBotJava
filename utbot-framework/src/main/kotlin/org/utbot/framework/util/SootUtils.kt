@@ -165,7 +165,6 @@ private val classesToLoad = arrayOf(
     UtIntStream::class,
     UtLongStream::class,
     UtDoubleStream::class,
-    UtStream.UtStreamIterator::class,
     UtIntStream.UtIntStreamIterator::class,
     UtLongStream.UtLongStreamIterator::class,
     UtDoubleStream.UtDoubleStreamIterator::class,
