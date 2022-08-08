@@ -12,7 +12,7 @@ import org.utbot.go.GoFuzzedFunctionOrMethodTestCase
 import org.utbot.go.containsNaNOrInf
 import org.utbot.go.doesNotContainNaNOrInf
 import org.utbot.go.executor.GoUtExecutionCompleted
-import org.utbot.go.executor.GoUtExecutionWithNonNullError
+import org.utbot.go.executor.GoUtExecutionWithNonNilError
 import org.utbot.go.executor.GoUtPanicFailure
 import org.utbot.go.fuzzer.goRequiredImports
 
@@ -45,6 +45,10 @@ object GoSimpleCodeGenerator {
         }
 
         fun addTopLevelElements(vararg originalElements: String) {
+            topLevelElements.addAll(originalElements)
+        }
+
+        fun addTopLevelElements(originalElements: Iterable<String>) {
             topLevelElements.addAll(originalElements)
         }
     }
@@ -136,7 +140,7 @@ object GoSimpleCodeGenerator {
         val (functionOrMethodNode, fuzzedParametersValues, executionResult) = testCase
 
         val testFunctionExecutionType =
-            if (executionResult is GoUtExecutionWithNonNullError) {
+            if (executionResult is GoUtExecutionWithNonNilError) {
                 "WithNonNilError"
             } else {
                 ""

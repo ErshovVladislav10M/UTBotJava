@@ -8,7 +8,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.idea.debugger.readAction
-import org.utbot.go.fuzzer.generateTestCases
+import org.utbot.go.fuzzer.generateTestCasesForGoFile
 import org.utbot.go.parser.GoParser
 import org.utbot.intellij.plugin.go.codegen.GoCodeGenerationController
 import org.utbot.intellij.plugin.ui.utils.showWarningDialogLater
@@ -69,23 +69,17 @@ object GoDialogProcessor {
                         + ProgressIndicatorConstants.PARSE_FILES_FRACTION
                 )
                 acknowledgeUserAboutUnparsedSelectedFunctions(model, parsingResults)
-                indicator.checkCanceled() // allow user cancel unit test generation
 
                 var processedFiles = 0
                 val testCasesByFile = parsingResults.mapValues { (filePath, parsingResult) ->
                     val fileName = File(filePath).name
                     indicator.text = "Generate test cases for $fileName"
-
-                    val totalGoFunctionsForFile = parsingResult.parsedFunctions.size
-                    parsingResult.parsedFunctions.mapIndexed { index, goFunctionNode ->
-                        indicator.fraction = indicator.fraction.coerceAtLeast(
-                            ProgressIndicatorConstants.START_FRACTION + ProgressIndicatorConstants.PARSE_FILES_FRACTION
-                                + ProgressIndicatorConstants.GENERATE_TEST_CASES_FRACTION *
-                                (processedFiles + index / totalGoFunctionsForFile) / parsingResults.size
-                        )
-                        indicator.checkCanceled() // allow user cancel unit test generation
-                        generateTestCases(goFunctionNode)
-                    }.flatten().also { processedFiles++ }
+                    indicator.fraction = indicator.fraction.coerceAtLeast(
+                        ProgressIndicatorConstants.START_FRACTION + ProgressIndicatorConstants.PARSE_FILES_FRACTION
+                            + ProgressIndicatorConstants.GENERATE_TEST_CASES_FRACTION * processedFiles / parsingResults.size
+                    )
+                    indicator.checkCanceled() // allow user cancel unit test generation
+                    generateTestCasesForGoFile(parsingResult.parsedFunctions).also { processedFiles++ }
                 }
 
                 indicator.fraction =

@@ -50,6 +50,8 @@ fun GoFunctionOrMethodNode.toFuzzedMethodDescription(concreteValues: Collection<
         parameterNameMap = { index -> names.getOrNull(index) }
     }
 
+data class GoFuzzedFunction(val functionNode: GoFunctionOrMethodNode, val fuzzedParametersValues: List<FuzzedValue>)
+
 data class GoFuzzedFunctionOrMethodTestCase(
     val functionOrMethodNode: GoFunctionOrMethodNode,
     val fuzzedParametersValues: List<FuzzedValue>,

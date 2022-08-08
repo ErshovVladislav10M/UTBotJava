@@ -1,353 +1,152 @@
 package org.utbot.go.executor
 
-import mu.KotlinLogging
-import org.utbot.common.pid
+import com.beust.klaxon.Klaxon
 import org.utbot.framework.plugin.api.*
 import org.utbot.framework.plugin.api.util.*
-import org.utbot.fuzzer.FuzzedValue
-import org.utbot.go.GoFunctionOrMethodNode
-import org.utbot.go.codegen.GoSimpleCodeGenerator
-import org.utbot.go.fuzzer.goRequiredImports
+import org.utbot.go.*
 import java.io.File
 import java.io.InputStreamReader
 import java.nio.file.Paths
 
 object GoExecutor {
 
-    object Constants {
-        const val FILE_TO_EXECUTE_NAME = "ut_go_executor_tmp_file_test.go"
+    fun executeGoFileFuzzedFunctions(fileFuzzedFunctions: List<GoFuzzedFunction>): Map<GoFuzzedFunction, GoUtExecutionResult> {
+        val fileNode = fileFuzzedFunctions.first().functionNode.containingFileNode
+        val fileToExecuteName = createFileToExecuteName(fileNode.name)
+        val rawExecutionResultsFileName = createRawExecutionResultsFileName(fileNode.name)
 
-        // TODO: set up Go executor in general
-        val GO_EXECUTOR_PATH = Paths.get("/home/gleb/go/go1.19rc1", "bin", "go").toString()
-//        val GO_EXECUTOR_PATH = Paths.get(System.getenv("GOROOT"), "bin", "go").toString()
-//        val GO_EXECUTOR_PATH = "go"
+        val goSourceFileDir = File(fileNode.containingPackagePath)
+        val fileToExecute = goSourceFileDir.resolve(fileToExecuteName)
+        val rawExecutionResultsFile = goSourceFileDir.resolve(rawExecutionResultsFileName)
 
-        // Note: codes must be correctly convertable into Regex (by .toRegex() method)
-        const val NIL_VALUE_CODE = "%__go_exec_nil__%"
-        const val DELIMITER_CODE = "%__go_exec_delim__%"
-        const val NAN_VALUE_CODE = "%__go_exec_nan__%"
-        const val POS_INF_VALUE_CODE = "%__go_exec_pos_inf__%"
-        const val NEG_INF_VALUE_CODE = "%__go_exec_neg_inf__%"
-        const val COMPLEX_PARTS_DELIMITER_CODE = "%__go_exec_complex_parts_delim__%"
-
-        const val EXECUTION_RESULT_OUTPUT_FILE_NAME = "ut_go_executor_out_communication.temp"
-        const val EXECUTION_RESULT_ERROR_FILE_NAME = "ut_go_executor_err_communication.temp"
-    }
-
-    private val logger = KotlinLogging.logger {}
-
-    fun invokeFunctionOrMethod(
-        functionOrMethodNode: GoFunctionOrMethodNode,
-        fuzzedParametersValues: List<FuzzedValue>
-    ): GoUtExecutionResult {
-
-        val fileToExecute = createGoFileToExecute(functionOrMethodNode.containingFileNode.containingPackagePath)
-
-        val packageDirectoryFile = File(functionOrMethodNode.containingFileNode.containingPackagePath).absoluteFile
-        val executionOutputFile = packageDirectoryFile.resolve(Constants.EXECUTION_RESULT_OUTPUT_FILE_NAME)
-        val executionErrorFile = packageDirectoryFile.resolve(Constants.EXECUTION_RESULT_ERROR_FILE_NAME)
+        val executorTestFunctionName = createExecutorTestFunctionName()
+        val runGeneratedGoExecutorTestCommand = listOf(
+            getGoExecutablePath(),
+            "test",
+            "-run",
+            executorTestFunctionName
+        )
 
         try {
-            val fileToExecuteCode = generateInvokeFunctionOrMethodGoCode(functionOrMethodNode, fuzzedParametersValues)
-            fileToExecute.writeText(fileToExecuteCode)
-
-            // TODO: get correct module name and run tests for it; for now: locally from package directory
-            val command = listOf(
-                Constants.GO_EXECUTOR_PATH,
-                "test",
-                "-run",
-                createTestFunctionName(functionOrMethodNode.name)
+            val fileToExecuteGoCode = GoExecutorCodeGenerationHelper.generateExecutorTestGoCode(
+                executorTestFunctionName,
+                rawExecutionResultsFileName,
+                fileFuzzedFunctions
             )
-
+            fileToExecute.writeText(fileToExecuteGoCode)
 
             val executedProcess = runCatching {
-                val process = ProcessBuilder(command)
+                val process = ProcessBuilder(runGeneratedGoExecutorTestCommand)
                     .redirectOutput(ProcessBuilder.Redirect.PIPE)
                     .redirectErrorStream(true)
-                    .directory(packageDirectoryFile)
-                    .start().also {
-                        logger.debug("GoExecutor process started with PID=${it.pid}")
-                    }
+                    .directory(goSourceFileDir)
+                    .start()
                 process.waitFor()
                 process
             }.getOrElse {
                 throw RuntimeException(
-                    "Execution of ${functionOrMethodNode.name} in child process failed with throwable: $it"
+                    "Execution of functions from ${fileNode.containingPackagePath} in child process failed with throwable: $it"
                 )
             }
             val exitCode = executedProcess.exitValue()
             if (exitCode != 0) {
                 val processOutput = InputStreamReader(executedProcess.inputStream).readText()
                 throw RuntimeException(
-                    "Execution of ${functionOrMethodNode.name} in child process failed with non-zero exit code = $exitCode:\n$processOutput"
+                    "Execution of functions from ${fileNode.containingPackagePath} in child process failed with non-zero exit code = $exitCode:\n$processOutput"
                 )
             }
 
-            val functionOrMethodReturnOutput = executionOutputFile.readText()
-            val functionOrMethodPanicOutput = executionErrorFile.readText()
+            val rawExecutionResults = Klaxon().parse<RawExecutionResults>(rawExecutionResultsFile)
+            if (rawExecutionResults == null) {
+                val rawExecutionResultsFileContent = try {
+                    rawExecutionResultsFile.readText()
+                } catch (exception: Exception) {
+                    null
+                }
+                throw RuntimeException(
+                    "Failed to deserialize raw execution results:\n$rawExecutionResultsFileContent"
+                )
+            }
 
-            return mapToGoUtExecutionResult(
-                functionOrMethodNode.returnTypes,
-                functionOrMethodReturnOutput,
-                functionOrMethodPanicOutput
-            )
+            return fileFuzzedFunctions.zip(rawExecutionResults.results)
+                .associate { (fuzzedFunction, rawExecutionResult) ->
+                    val executionResult = convertRawExecutionResultToExecutionResult(
+                        rawExecutionResult,
+                        fuzzedFunction.functionNode.returnTypes
+                    )
+                    fuzzedFunction to executionResult
+                }
 
         } finally {
             fileToExecute.delete()
-            executionErrorFile.delete()
-            executionOutputFile.delete()
+            rawExecutionResultsFile.delete()
         }
     }
 
-    private fun createGoFileToExecute(functionOrMethodContainingPackage: String): File {
-        val file = Paths.get(functionOrMethodContainingPackage, Constants.FILE_TO_EXECUTE_NAME).toFile()
-        file.createNewFile()
-        return file
+    private fun createFileToExecuteName(sourceFileName: String): String {
+        return "utbot_go_executor_${sourceFileName}_test.go"
     }
 
-    private fun createTestFunctionName(functionOrMethodName: String): String {
-        return "Test${functionOrMethodName.capitalize()}ByUtGoExecutor"
+    private fun createRawExecutionResultsFileName(sourceFileName: String): String {
+        return "utbot_go_executor_${sourceFileName}_test_results.json"
     }
 
-    // TODO: use more convenient code generation
-    private fun generateInvokeFunctionOrMethodGoCode(
-        functionOrMethodNode: GoFunctionOrMethodNode,
-        fuzzedParametersValues: List<FuzzedValue>
-    ): String {
-        val fileBuilder = GoSimpleCodeGenerator.GoFileCodeBuilder()
-
-        fileBuilder.setPackage(functionOrMethodNode.containingFileNode.containingPackageName)
-
-        val imports = mutableSetOf("bufio", "fmt", "io", "math", "os", "testing", "reflect")
-        fuzzedParametersValues.forEach {
-            imports += it.goRequiredImports
-        }
-        fileBuilder.setImports(imports)
-
-        val checkErrorFunctionDeclaration = """
-            func __checkErrorAndExitToUtGoExecutor__(err error) {
-            	if err != nil {
-            		os.Exit(1)
-            	}
-            }
-        """.trimIndent()
-
-        val float64ToStringFunctionDeclaration = """
-            func __float64ValueToStringForUtGoExecutor__(value float64) string {
-            	const outputNaN = "${Constants.NAN_VALUE_CODE}"
-            	const outputPosInf = "${Constants.POS_INF_VALUE_CODE}"
-            	const outputNegInf = "${Constants.NEG_INF_VALUE_CODE}"
-            	switch {
-            	case math.IsNaN(value):
-            		return fmt.Sprint(outputNaN)
-            	case math.IsInf(value, 1):
-            		return fmt.Sprint(outputPosInf)
-            	case math.IsInf(value, -1):
-            		return fmt.Sprint(outputNegInf)
-            	default:
-            		return fmt.Sprintf("%#v", value)
-            	}
-            }
-        """.trimIndent()
-
-        val float32ToStringFunctionDeclaration = """
-            func __float32ValueToStringForUtGoExecutor__(value float32) string {
-            	return __float64ValueToStringForUtGoExecutor__(float64(value))
-            }
-        """.trimIndent()
-
-        // TODO: check "error" case more carefully
-        val valueToStringFunctionDeclaration = """
-            func __valueToStringForUtGoExecutor__(value any) string {
-            	const outputComplexPartsDelimiter = "%__go_exec_complex_parts_delim__%"
-            	switch typedValue := value.(type) {
-            	case complex128:
-            		realPartString := __float64ValueToStringForUtGoExecutor__(real(typedValue))
-            		imagPartString := __float64ValueToStringForUtGoExecutor__(imag(typedValue))
-            		return fmt.Sprintf("%v%v%v", realPartString, outputComplexPartsDelimiter, imagPartString)
-            	case complex64:
-            		realPartString := __float32ValueToStringForUtGoExecutor__(real(typedValue))
-            		imagPartString := __float32ValueToStringForUtGoExecutor__(imag(typedValue))
-            		return fmt.Sprintf("%v%v%v", realPartString, outputComplexPartsDelimiter, imagPartString)
-            	case float64:
-            		return __float64ValueToStringForUtGoExecutor__(typedValue)
-            	case float32:
-            		return __float32ValueToStringForUtGoExecutor__(typedValue)
-            	case string:
-            		return fmt.Sprintf("%#v", typedValue)
-                case error:
-                    return fmt.Sprintf("%#v", typedValue.Error())
-            	default:
-            		return fmt.Sprintf("%v", typedValue)
-            	}
-            }
-        """.trimIndent()
-
-        val printOrExitFunctionDeclaration = """
-            func __printToUtGoExecutorOrExit__(writer io.Writer, value any) {
-            	_, err := fmt.Fprint(writer, __valueToStringForUtGoExecutor__(value))
-            	__checkErrorAndExitToUtGoExecutor__(err)
-            }
-        """.trimIndent()
-
-        val printOutputCodeOrExitFunctionDeclaration = """
-            func __printOutputCodeToUtGoExecutorOrExit__(writer io.Writer, outputCode string) {
-            	_, err := fmt.Fprint(writer, outputCode)
-            	__checkErrorAndExitToUtGoExecutor__(err)
-            }
-        """.trimIndent()
-
-        val printValueFunctionDeclaration = """
-            func __printValueToUtGoExecutor__(writer io.Writer, value any, printPostfixSeparator bool) {
-                const outputNil = "${Constants.NIL_VALUE_CODE}"
-                const outputDelimiter = "${Constants.DELIMITER_CODE}"
-                if value == nil {
-                    __printOutputCodeToUtGoExecutorOrExit__(writer, outputNil)
-                } else {
-                    __printToUtGoExecutorOrExit__(writer, value)
-                }
-                if printPostfixSeparator {
-                    __printOutputCodeToUtGoExecutorOrExit__(writer, outputDelimiter)
-                }
-            }
-        """.trimIndent()
-
-        val createWriterFunctionDeclaration = """
-            func __createWriterToUtGoExecutorFile__(fileName string) (*os.File, *bufio.Writer) {
-            	file, err := os.Create(fileName)
-            	__checkErrorAndExitToUtGoExecutor__(err)
-            	return file, bufio.NewWriter(file)
-            }
-        """.trimIndent()
-
-        val closeWriterFunctionDeclaration = """
-            func __closeWriterToUtGoExecutorFile__(file *os.File, writer *bufio.Writer) {
-                flushErr := writer.Flush()
-                __checkErrorAndExitToUtGoExecutor__(flushErr)
-            
-                closeErr := file.Close()
-                __checkErrorAndExitToUtGoExecutor__(closeErr)
-            }
-        """.trimIndent()
-
-        // rv = return values
-        val rvCount = functionOrMethodNode.returnTypes.size
-        val rvVariablesNames = (1..rvCount).map { "rv$it" }
-
-        // TODO: support methods
-        val fuzzedFunctionCall = if (rvCount == 0) {
-            GoSimpleCodeGenerator.generateFuzzedFunctionCall(functionOrMethodNode, fuzzedParametersValues)
-        } else {
-            GoSimpleCodeGenerator.generateFuzzedFunctionCallSavedToVariables(
-                rvVariablesNames,
-                functionOrMethodNode,
-                fuzzedParametersValues
-            )
-        }
-
-        val executionTestDeclarationSb = StringBuilder()
-        executionTestDeclarationSb.append(
-            """
-            func ${createTestFunctionName(functionOrMethodNode.name)}(t *testing.T) {
-                outFile, outWriter := __createWriterToUtGoExecutorFile__("${Constants.EXECUTION_RESULT_OUTPUT_FILE_NAME}")
-                errFile, errWriter := __createWriterToUtGoExecutorFile__("${Constants.EXECUTION_RESULT_ERROR_FILE_NAME}")
-        
-                panicked := true
-                defer func() {
-                    panicMessage := recover()
-                    __printValueToUtGoExecutor__(errWriter, panicked, true)
-                    __printValueToUtGoExecutor__(errWriter, panicMessage, true)
-                    __printValueToUtGoExecutor__(errWriter, reflect.TypeOf(panicMessage), false)
-            
-                    __closeWriterToUtGoExecutorFile__(outFile, outWriter)
-                    __closeWriterToUtGoExecutorFile__(errFile, errWriter)
-                }()
-                
-                $fuzzedFunctionCall
-                panicked = false
-               
-        """.trimIndent()
-        )
-
-        rvVariablesNames.forEachIndexed { index, variableName ->
-            val isLastPrintRvVariableCall = index == (rvVariablesNames.size - 1)
-            executionTestDeclarationSb.append("\n\t__printValueToUtGoExecutor__(outWriter, $variableName, ${!isLastPrintRvVariableCall})")
-        }
-        executionTestDeclarationSb.append("\n}")
-
-        fileBuilder.addTopLevelElements(
-            checkErrorFunctionDeclaration,
-            float64ToStringFunctionDeclaration,
-            float32ToStringFunctionDeclaration,
-            valueToStringFunctionDeclaration,
-            printOrExitFunctionDeclaration,
-            printOutputCodeOrExitFunctionDeclaration,
-            printValueFunctionDeclaration,
-            createWriterFunctionDeclaration,
-            closeWriterFunctionDeclaration,
-            executionTestDeclarationSb.toString()
-        )
-
-        return fileBuilder.buildCodeString()
+    // TODO: find in general
+    private fun getGoExecutablePath(): String {
+        return Paths.get("/home/gleb/go/go1.19rc1", "bin", "go").toString()
     }
 
-    private fun mapToGoUtExecutionResult(
-        returnCommonTypes: List<GoTypeId>,
-        returnRawValuesOutput: String,
-        panicRawValuesOutput: String
+    private fun createExecutorTestFunctionName(): String {
+        return "TestGoFileFuzzedFunctionsByUtGoExecutor"
+    }
+
+    private object RawValuesCodes {
+        const val NAN_VALUE = "NaN"
+        const val POS_INF_VALUE = "+Inf"
+        const val NEG_INF_VALUE = "-Inf"
+        const val COMPLEX_PARTS_DELIMITER = "@"
+    }
+
+    private fun convertRawExecutionResultToExecutionResult(
+        rawExecutionResult: RawExecutionResult,
+        functionResultTypes: List<GoTypeId>
     ): GoUtExecutionResult {
-
-        val returnRawValues = if (returnRawValuesOutput.isEmpty()) {
-            emptyList()
-        } else {
-            returnRawValuesOutput.split(Constants.DELIMITER_CODE.toRegex())
-        }
-        val panicRawValues = panicRawValuesOutput.split(Constants.DELIMITER_CODE.toRegex())
-
-        if (panicRawValues.size != 3) {
-            error("Panicked, panicMessage and panicMessageRawGoType are expected in stderr.")
-        }
-        val (panicked, panicMessage, panicMessageRawGoType) = panicRawValues
-        if (panicked.toBoolean()) {
-            if (panicMessage == Constants.NIL_VALUE_CODE) {
+        if (rawExecutionResult.panicMessage != null) {
+            val (rawValue, rawGoType, implementsError) = rawExecutionResult.panicMessage
+            if (rawValue == null) {
                 return GoUtPanicFailure(GoUtNilModel(goAnyTypeId), goAnyTypeId)
             }
-            val panicMessageTypeId = GoTypeId(panicMessageRawGoType)
-            val panicMessageModel = if (panicMessageTypeId.isPrimitive) {
-                createGoUtPrimitiveModelFromRawValue(panicMessage, panicMessageTypeId)
+            val goTypeId = GoTypeId(rawGoType, isErrorType = implementsError)
+            val messageModel = if (goTypeId.isPrimitive) {
+                createGoUtPrimitiveModelFromRawValue(rawValue, goTypeId)
             } else {
-                GoUtPrimitiveModel(panicMessage, goStringTypeId)
+                GoUtPrimitiveModel(rawValue, goStringTypeId)
             }
-            return GoUtPanicFailure(panicMessageModel, panicMessageTypeId)
+            return GoUtPanicFailure(messageModel, goTypeId)
         }
 
-        if (returnRawValues.size != returnCommonTypes.size) {
-            error("Function or method completed execution must have as many return values as return types.")
+        if (rawExecutionResult.resultRawValues.size != functionResultTypes.size) {
+            error("Function completed execution must have as many result raw values as result types.")
         }
-        var executedWithNonNullErrorString = false
-        val returnValues = returnRawValues.zip(returnCommonTypes).map { (returnRawValue, returnType) ->
-            if (nonNullErrorReceived(returnRawValue, returnType)) {
-                executedWithNonNullErrorString = true
+        var executedWithNonNilErrorString = false
+        val resultValues =
+            rawExecutionResult.resultRawValues.zip(functionResultTypes).map { (resultRawValue, resultType) ->
+                if (resultType.isErrorType && resultRawValue != null) {
+                    executedWithNonNilErrorString = true
+                }
+                if (resultRawValue == null) {
+                    GoUtNilModel(resultType)
+                } else {
+                    // TODO: support errors fairly, i. e. as structs; for now consider them as strings
+                    val nonNilModelTypeId = if (resultType.isErrorType) goStringTypeId else resultType
+                    createGoUtPrimitiveModelFromRawValue(resultRawValue, nonNilModelTypeId)
+                }
             }
-            if (returnRawValue == Constants.NIL_VALUE_CODE) {
-                GoUtNilModel(returnType)
-            } else {
-                // TODO: support errors fairly, i. e. as structs; for now consider them as strings
-                val nonNilModelTypeId = if (returnType.isErrorType) goStringTypeId else returnType
-                // TODO: support compound types
-                createGoUtPrimitiveModelFromRawValue(returnRawValue, nonNilModelTypeId)
-            }
-        }
-
-        return if (executedWithNonNullErrorString) {
-            GoUtExecutionWithNonNullError(returnValues)
+        return if (executedWithNonNilErrorString) {
+            GoUtExecutionWithNonNilError(resultValues)
         } else {
-            GoUtExecutionSuccess(returnValues)
+            GoUtExecutionSuccess(resultValues)
         }
-    }
-
-    private fun nonNullErrorReceived(rawValue: String, classId: GoTypeId): Boolean {
-        return classId.isErrorType && rawValue != Constants.NIL_VALUE_CODE
     }
 
     @OptIn(ExperimentalUnsignedTypes::class)
@@ -357,7 +156,7 @@ object GoExecutor {
         }
         if (typeId == goComplex128TypeId || typeId == goComplex64TypeId) {
             val correspondingFloatType = if (typeId == goComplex128TypeId) goFloat64TypeId else goFloat32TypeId
-            val (realPartModel, imagPartModel) = rawValue.split(Constants.COMPLEX_PARTS_DELIMITER_CODE.toRegex()).map {
+            val (realPartModel, imagPartModel) = rawValue.split(RawValuesCodes.COMPLEX_PARTS_DELIMITER).map {
                 convertRawFloatValueToGoUtPrimitiveModel(it, correspondingFloatType, typeId == goComplex64TypeId)
             }
             return GoUtComplexModel(realPartModel, imagPartModel, typeId)
@@ -386,9 +185,9 @@ object GoExecutor {
         explicitCastRequired: Boolean = false
     ): GoUtPrimitiveModel {
         return when (rawValue) {
-            Constants.NAN_VALUE_CODE -> GoUtFloatNaNModel(typeId)
-            Constants.POS_INF_VALUE_CODE -> GoUtFloatInfModel(1, typeId)
-            Constants.NEG_INF_VALUE_CODE -> GoUtFloatInfModel(-1, typeId)
+            RawValuesCodes.NAN_VALUE -> GoUtFloatNaNModel(typeId)
+            RawValuesCodes.POS_INF_VALUE -> GoUtFloatInfModel(1, typeId)
+            RawValuesCodes.NEG_INF_VALUE -> GoUtFloatInfModel(-1, typeId)
             else -> {
                 val typedValue = if (typeId == goFloat64TypeId) rawValue.toDouble() else rawValue.toFloat()
                 if (explicitCastRequired) {

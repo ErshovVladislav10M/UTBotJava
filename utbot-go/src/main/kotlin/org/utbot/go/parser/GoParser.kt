@@ -106,7 +106,7 @@ object GoParser {
                         )
                     }
                     val containingFileNode = GoFileNode(
-                        result.filePath,
+                        File(result.filePath).nameWithoutExtension,
                         result.packageName,
                         Paths.get(result.filePath).parent.toString()
                     )

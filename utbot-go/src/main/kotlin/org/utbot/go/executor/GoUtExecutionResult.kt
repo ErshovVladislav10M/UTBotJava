@@ -11,7 +11,7 @@ interface GoUtExecutionCompleted : GoUtExecutionResult {
 
 data class GoUtExecutionSuccess(override val models: List<GoUtModel>) : GoUtExecutionCompleted
 
-data class GoUtExecutionWithNonNullError(override val models: List<GoUtModel>) : GoUtExecutionCompleted
+data class GoUtExecutionWithNonNilError(override val models: List<GoUtModel>) : GoUtExecutionCompleted
 
 data class GoUtPanicFailure(
     val panicMessageModel: GoUtModel,
