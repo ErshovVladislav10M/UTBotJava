@@ -5,7 +5,7 @@ import org.utbot.framework.plugin.api.JsClassId
 
 val jsUndefinedClassId = JsClassId("undefined")
 val jsNumberClassId = JsClassId("number")
-val jsBooleanClassId = JsClassId("boolean")
+val jsBooleanClassId = JsClassId("bool")
 val jsDoubleClassId = JsClassId("double")
 val jsStringClassId = JsClassId("string")
 

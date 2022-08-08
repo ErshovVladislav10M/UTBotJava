@@ -1,5 +1,7 @@
 package utils
 
+import com.oracle.js.parser.ir.ClassNode
+import com.oracle.js.parser.ir.FunctionNode
 import java.io.File
 import java.nio.charset.Charset
 import org.json.JSONException
@@ -112,11 +114,15 @@ test("$filePathToInference")
         json = JSONObject(reader.readText())
     }
 
-    fun processConstructor(className: String): List<JsClassId> {
-        val classJson = json.getJSONObject(className)
-        val constructorFunc = classJson.getString("!type")
-            .filterNot { setOf(' ', '+', '!').contains(it) }
-        return extractParameters(constructorFunc)
+    fun processConstructor(classNode: ClassNode): List<JsClassId> {
+        val classJson = json.getJSONObject(classNode.ident.name.toString())
+        return try {
+            val constructorFunc = classJson.getString("!type")
+                .filterNot { setOf(' ', '+', '!').contains(it) }
+            extractParameters(constructorFunc)
+        } catch (e: JSONException) {
+            (classNode.constructor.value as FunctionNode).parameters.map { jsUndefinedClassId }
+        }
     }
 
     private fun extractParameters(line: String): List<JsClassId> {
@@ -160,10 +166,11 @@ test("$filePathToInference")
         return MethodTypes(parametersList, returnType)
     }
 
-    //TODO SEVERE: move to appropriate place (JsIdUtil or JsClassId constructor)
+    //TODO MINOR: move to appropriate place (JsIdUtil or JsClassId constructor)
     private fun makeClassId(name: String): JsClassId {
         val classId = when {
-            name == "?" -> jsUndefinedClassId
+            // TODO SEVERE: I don't know why Tern sometimes says that type is "0"
+            name == "?" || name == "0" -> jsUndefinedClassId
             name.contains('|') -> JsMultipleClassId(name.toLowerCase())
             else -> JsClassId(name.toLowerCase())
         }

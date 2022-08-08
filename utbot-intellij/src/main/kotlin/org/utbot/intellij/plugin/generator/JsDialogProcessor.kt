@@ -94,6 +94,8 @@ object JsDialogProcessor {
         TernService.projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path.")
         TernService.trimmedFileText = trimmedFileText
         TernService.run()
+        val exports = mutableSetOf<String>()
+        val file = File(containingFilePath)
         model.selectedMethods?.forEach { jsMemberInfo ->
             var parentPsi = PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java)
             // "toplevelHack" is from JsActionMethods
@@ -111,9 +113,7 @@ object JsDialogProcessor {
 
             val obligatoryExport = (classNode?.ident?.name ?: funcNode.ident.name).toString()
             val collectedExports = collectExports(execId)
-            val file = File(containingFilePath)
-            manageExports(file, collectedExports + obligatoryExport)
-
+            exports += (collectedExports + obligatoryExport)
             funcNode.body.accept(JsFuzzerAstVisitor)
             val methodUnderTestDescription = FuzzedMethodDescription(execId, JsFuzzerAstVisitor.fuzzedConcreteValues).apply {
                 compilableName = funcNode.name.toString()
@@ -125,7 +125,7 @@ object JsDialogProcessor {
             // For dev purposes only random set of fuzzed values is picked. TODO SEVERE: patch this later
             val randomParams = getRandomNumFuzzedValues(fuzzedValues)
             val testsForGenerator = mutableListOf<UtExecution>()
-            randomParams.forEach { param ->
+            fuzzedValues.forEach { param ->
                 // Hack: Should create one file with all functions to run? TODO MINOR: think
                 val utConstructor = JsUtModelConstructor()
                 val (returnValue, valueClassId) = runJs(param, execId, classNode?.ident?.name, trimmedFileText,
@@ -134,6 +134,10 @@ object JsDialogProcessor {
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val thisInstance = when {
                     execId.isStatic -> null
+                    classId.allConstructors.first().parameters.isEmpty() -> {
+                        // TODO MINOR: make UtAssembleModel here for prettier generated code
+                        null
+                    }
                     else -> {
                         JsObjectModelProvider.generate(
                             FuzzedMethodDescription("thisInstance", voidClassId, listOf(classId), JsFuzzerAstVisitor.fuzzedConcreteValues)
@@ -167,6 +171,7 @@ object JsDialogProcessor {
             testFile.writeText(generatedCode)
             testFile.createNewFile()
         }
+        manageExports(file, exports.toList())
     }
 
     private fun collectExports(methodId: JsMethodId): List<String> {

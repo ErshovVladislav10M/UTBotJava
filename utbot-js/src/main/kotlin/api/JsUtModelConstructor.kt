@@ -27,6 +27,7 @@ class JsUtModelConstructor: UtModelConstructorInterface {
             is Long,
             is Float,
             is Double,
+            is String,
             is Boolean -> JsPrimitiveModel(value)
             else -> throw Exception("Not implemented yet")
         }

@@ -33,7 +33,7 @@ fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<Funct
     val constructor = classNode?.let {
         JsConstructorId(
             JsClassId(name),
-            TernService.processConstructor(name),
+            TernService.processConstructor(it),
         )
     }
     val newClassId = JsClassId(

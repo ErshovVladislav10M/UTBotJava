@@ -24,7 +24,7 @@ object JsFuzzerAstVisitor : NodeVisitor<LexicalContext>(LexicalContext()) {
             lastFuzzedOpGlobal = lastFuzzedOpGlobal.reverseOrElse { FuzzedOp.NONE }
             validateNode(binNode.rhs)
         }
-        return false
+        return true
     }
 
     private fun validateNode(literalNode: Node) {
@@ -42,7 +42,7 @@ object JsFuzzerAstVisitor : NodeVisitor<LexicalContext>(LexicalContext()) {
             is Boolean -> {
                 fuzzedConcreteValues.add(
                     FuzzedConcreteValue(
-                        booleanClassId,
+                        jsBooleanClassId,
                         literalNode.value,
                         lastFuzzedOpGlobal
                     )
@@ -55,7 +55,7 @@ object JsFuzzerAstVisitor : NodeVisitor<LexicalContext>(LexicalContext()) {
                 fuzzedConcreteValues.add(FuzzedConcreteValue(jsNumberClassId, literalNode.value, lastFuzzedOpGlobal))
             }
             is Double -> {
-                fuzzedConcreteValues.add(FuzzedConcreteValue(jsDoubleClassId, literalNode.value, lastFuzzedOpGlobal))
+                fuzzedConcreteValues.add(FuzzedConcreteValue(jsNumberClassId, literalNode.value, lastFuzzedOpGlobal))
             }
         }
     }
