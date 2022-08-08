@@ -225,7 +225,7 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
     }
 
     override fun visit(element: CgConstructorCall) {
-        print("new ${element.executableId.classId.name}")
+        print("new fileUnderTest.${element.executableId.classId.name}")
         print("(")
         element.arguments.renderSeparated()
         print(")")
