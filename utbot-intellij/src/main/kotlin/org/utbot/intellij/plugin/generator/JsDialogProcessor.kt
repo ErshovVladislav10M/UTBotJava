@@ -35,17 +35,15 @@ import org.utbot.intellij.plugin.ui.utils.testModule
 import parser.JsFunctionAstVisitor
 import parser.JsFuzzerAstVisitor
 import parser.JsParserUtils
-import utils.TernService
+import service.TernService
 import utils.constructClass
 import utils.toAny
 import java.nio.file.Paths
 import org.utbot.framework.plugin.api.JsMethodId
-import org.utbot.framework.plugin.api.UtNullModel
-import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
-import org.utbot.fuzzer.providers.ObjectModelProvider
-import kotlin.random.Random
+import service.CoverageService
+import service.ServiceContext
 
 object JsDialogProcessor {
 
@@ -90,10 +88,15 @@ object JsDialogProcessor {
         // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
         //  Also general trimming required, for example "export" keyword, etc.
         val trimmedFileText = fileText.replace(regex, "")
-        TernService.filePathToInference = containingFilePath
-        TernService.projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path.")
-        TernService.trimmedFileText = trimmedFileText
-        TernService.run()
+        val context = ServiceContext(
+            utbotDir = "utbotJs",
+            projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path."),
+            filePathToInference = containingFilePath,
+            trimmedFileText = trimmedFileText,
+        )
+        // TODO MINOR: do not create existing files
+        val ternService = TernService(context)
+        ternService.run()
         val exports = mutableSetOf<String>()
         val file = File(containingFilePath)
         model.selectedMethods?.forEach { jsMemberInfo ->
@@ -105,8 +108,8 @@ object JsDialogProcessor {
             val funcNode = getFunctionNode(jsMemberInfo, parentPsi?.name, trimmedFileText)
             val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(parentPsi.name!!, trimmedFileText) else null
             val classId = parentPsi?.let {
-                JsClassId(it.name!!).constructClass(classNode)
-            } ?: JsClassId("undefined").constructClass(functions = listOf(funcNode))
+                JsClassId(it.name!!).constructClass(ternService, classNode)
+            } ?: JsClassId("undefined").constructClass(ternService, functions = listOf(funcNode))
             val execId = classId.allMethods.find {
                 it.name == funcNode.name.toString()
             } ?: throw IllegalStateException()
@@ -122,15 +125,25 @@ object JsDialogProcessor {
             }
             val fuzzedValues =
                 jsFuzzing(methodUnderTestDescription = methodUnderTestDescription).toList()
-            // For dev purposes only random set of fuzzed values is picked. TODO SEVERE: patch this later
-            val randomParams = getRandomNumFuzzedValues(fuzzedValues)
+                    .shuffled()
+                    .take(500)
+            if (fuzzedValues.size >= 500) println("Shapka!")
+            val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
+            fuzzedValues.indices.toList().parallelStream().forEach {
+                val scriptText = makeStringForRunJs(fuzzedValues[it], execId, classNode?.ident?.name, trimmedFileText)
+                val id = Thread.currentThread().id
+                val coverageService = CoverageService(context, scriptText, id)
+                coveredBranchesArray[it] = coverageService.getCoveredLines()
+            }
             val testsForGenerator = mutableListOf<UtExecution>()
-            fuzzedValues.forEach { param ->
-                // Hack: Should create one file with all functions to run? TODO MINOR: think
+            analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
+                val param = fuzzedValues[paramIndex]
                 val utConstructor = JsUtModelConstructor()
-                val (returnValue, valueClassId) = runJs(param, execId, classNode?.ident?.name, trimmedFileText,
+                val scriptText = makeStringForRunJs(param, execId, classNode?.ident?.name, trimmedFileText)
+                val (returnValue, valueClassId) = runJs(
+                    scriptText,
                     containingFilePath.replaceAfterLast("/", "")
-                ).toAny()
+                ).toAny(execId.returnType)
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val thisInstance = when {
                     execId.isStatic -> null
@@ -211,21 +224,13 @@ object JsDialogProcessor {
         }
     }
 
-    private fun getRandomNumFuzzedValues(fuzzedValues: List<List<FuzzedValue>>): List<List<FuzzedValue>> {
-        val newFuzzedValues = mutableListOf<List<FuzzedValue>>()
-        for (i in 0..minOf(10, fuzzedValues.size)) {
-            newFuzzedValues.add(fuzzedValues[Random.nextInt(fuzzedValues.size)])
-        }
-        return newFuzzedValues
-    }
-
-    private fun runJs(fuzzedValues: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?, fileText: String, workDir: String): Value {
+    private fun runJs(scriptText: String, workDir: String): Value {
         val context = Context.newBuilder("js")
             .allowIO(true)
             .currentWorkingDirectory(Paths.get(workDir))
+            .option("engine.WarnInterpreterOnly", "false")
             .build()
-        val str = makeStringForRunJs(fuzzedValues, method, containingClass, fileText)
-        val source = org.graalvm.polyglot.Source.newBuilder("js", str, "script")
+        val source = org.graalvm.polyglot.Source.newBuilder("js", scriptText, "script")
             .mimeType("application/javascript+module").build()
         return context.eval(source)
     }
@@ -283,5 +288,18 @@ object JsDialogProcessor {
         val visitor = JsFunctionAstVisitor(focusedMethod.member.name!!, parentClassName)
         fileNode.accept(visitor)
         return visitor.targetFunctionNode
+    }
+
+    private fun analyzeCoverage(coverageList: List<Set<Int>>): List<Int> {
+        val allCoveredBranches = mutableSetOf<Int>()
+        allCoveredBranches.addAll(coverageList.first())
+        val resultList = mutableListOf(0)
+        coverageList.forEachIndexed { index, it ->
+            if (!allCoveredBranches.containsAll(it)) {
+                resultList += index
+                allCoveredBranches.addAll(it)
+            }
+        }
+        return resultList
     }
 }

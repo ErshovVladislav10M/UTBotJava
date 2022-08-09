@@ -5,13 +5,13 @@ import java.io.File
 
 object JsCmdExec {
 
-    fun runCommand(cmd: String, dir: String? = null): BufferedReader {
+    fun runCommand(cmd: String, dir: String? = null, shouldWait: Boolean = false): BufferedReader {
         val builder = ProcessBuilder("cmd.exe", "/c", cmd)
         dir?.let {
             builder.directory(File(it))
         }
         val process = builder.start()
-        val lel = process.errorStream.bufferedReader().readText()
+        if (shouldWait) process.waitFor()
         return process.inputStream.bufferedReader()
     }
 }

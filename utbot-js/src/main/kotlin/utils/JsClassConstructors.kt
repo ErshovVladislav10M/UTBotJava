@@ -5,11 +5,12 @@ import com.oracle.js.parser.ir.FunctionNode
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsConstructorId
 import org.utbot.framework.plugin.api.JsMethodId
+import service.TernService
 
-fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<FunctionNode> = emptyList()): JsClassId {
+fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = null, functions: List<FunctionNode> = emptyList()): JsClassId {
     val methods = classNode?.classElements?.map {
         val funcNode = it.value as FunctionNode
-        val types = TernService.processMethod(name, funcNode.name.toString())
+        val types = ternService.processMethod(name, funcNode.name.toString())
         JsMethodId(
             JsClassId(name),
             funcNode.name.toString(),
@@ -20,7 +21,7 @@ fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<Funct
     }?.asSequence() ?:
         // used for toplevel functions
         functions.map { funcNode ->
-            val types = TernService.processMethod(name, funcNode.name.toString(), true)
+            val types = ternService.processMethod(name, funcNode.name.toString(), true)
             JsMethodId(
                 JsClassId(name),
                 funcNode.name.toString(),
@@ -33,15 +34,15 @@ fun JsClassId.constructClass(classNode: ClassNode? = null, functions: List<Funct
     val constructor = classNode?.let {
         JsConstructorId(
             JsClassId(name),
-            TernService.processConstructor(it),
+            ternService.processConstructor(it),
         )
     }
     val newClassId = JsClassId(
         name,
         methods,
         constructor,
-        TernService.projectPath,
-        TernService.filePathToInference,
+        ternService.context.projectPath,
+        ternService.context.filePathToInference,
     )
     methods.forEach {
         it.classId = newClassId

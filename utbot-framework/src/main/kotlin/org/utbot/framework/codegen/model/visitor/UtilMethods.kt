@@ -600,7 +600,7 @@ fun deepEquals(language: CodegenLanguage, mockFrameworkUsed: Boolean, mockFramew
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> "assert.deepEqual()"
     }
 
 fun arraysDeepEquals(language: CodegenLanguage): String =
@@ -644,7 +644,7 @@ fun arraysDeepEquals(language: CodegenLanguage): String =
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> ""
     }
 
 fun iterablesDeepEquals(language: CodegenLanguage): String =
@@ -686,7 +686,7 @@ fun iterablesDeepEquals(language: CodegenLanguage): String =
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> ""
     }
 
 fun streamsDeepEquals(language: CodegenLanguage): String =
@@ -732,7 +732,7 @@ fun streamsDeepEquals(language: CodegenLanguage): String =
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> ""
     }
 
 fun mapsDeepEquals(language: CodegenLanguage): String =
@@ -790,7 +790,7 @@ fun mapsDeepEquals(language: CodegenLanguage): String =
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> ""
     }
 
 fun hasCustomEquals(language: CodegenLanguage): String =
@@ -830,7 +830,7 @@ fun hasCustomEquals(language: CodegenLanguage): String =
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> ""
     }
 
 fun getArrayLength(codegenLanguage: CodegenLanguage) =
@@ -846,7 +846,7 @@ fun getArrayLength(codegenLanguage: CodegenLanguage) =
             private fun getArrayLength(arr: kotlin.Any?): Int = java.lang.reflect.Array.getLength(arr)
             """.trimIndent()
 
-        CodegenLanguage.JS -> TODO()
+        CodegenLanguage.JS -> ""
     }
 
 internal fun CgContextOwner.importUtilMethodDependencies(id: MethodId) {
@@ -882,27 +882,27 @@ private fun ClassId.regularImportsByUtilMethod(id: MethodId, codegenLanguage: Co
                 Arrays::class.id
             )
             CodegenLanguage.KOTLIN -> listOf(fieldClassId, Arrays::class.id)
-            CodegenLanguage.JS -> TODO()
+            CodegenLanguage.JS -> emptyList()
         }
         arraysDeepEqualsMethodId -> when (codegenLanguage) {
             CodegenLanguage.JAVA -> listOf(Array::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> listOf(Array::class.id)
-            CodegenLanguage.JS -> TODO()
+            CodegenLanguage.JS -> emptyList()
         }
         iterablesDeepEqualsMethodId -> when (codegenLanguage) {
             CodegenLanguage.JAVA -> listOf(Iterable::class.id, Iterator::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> emptyList()
-            CodegenLanguage.JS -> TODO()
+            CodegenLanguage.JS -> emptyList()
         }
         streamsDeepEqualsMethodId -> when (codegenLanguage) {
             CodegenLanguage.JAVA -> listOf(Stream::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> emptyList()
-            CodegenLanguage.JS -> TODO()
+            CodegenLanguage.JS -> emptyList()
         }
         mapsDeepEqualsMethodId -> when (codegenLanguage) {
             CodegenLanguage.JAVA -> listOf(Map::class.id, Iterator::class.id, Set::class.id)
             CodegenLanguage.KOTLIN -> emptyList()
-            CodegenLanguage.JS -> TODO()
+            CodegenLanguage.JS -> emptyList()
         }
         hasCustomEqualsMethodId -> emptyList()
         getArrayLengthMethodId -> listOf(java.lang.reflect.Array::class.id)

@@ -6,7 +6,7 @@ import org.utbot.framework.plugin.api.util.jsBooleanClassId
 import org.utbot.framework.plugin.api.util.jsNumberClassId
 import org.utbot.framework.plugin.api.util.jsStringClassId
 
-fun Value.toAny(): Pair<Any?, JsClassId> {
+fun Value.toAny(returnType: JsClassId): Pair<Any?, JsClassId> {
     return when {
         isBoolean -> asBoolean() to jsBooleanClassId
         isString -> asString() to jsStringClassId
@@ -21,10 +21,9 @@ fun Value.toAny(): Pair<Any?, JsClassId> {
                 str.toLongOrNull() ?:
                 // TODO SEVERE: extend this
                 throw IllegalStateException("Number too big")) to jsNumberClassId
-
             }
         }
         isNull -> null to JsClassId("null")
-        else -> throw Exception("Not implemented yet")
+        else -> this.`as`(Map::class.java) to returnType
     }
 }

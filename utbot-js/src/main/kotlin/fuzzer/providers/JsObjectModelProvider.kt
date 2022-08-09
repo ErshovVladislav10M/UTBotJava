@@ -18,7 +18,7 @@ import org.utbot.fuzzer.fuzz
 
 object JsObjectModelProvider: ModelProvider {
 
-    private val idGenerator = SimpleIdGenerator()
+    val idGenerator = SimpleIdGenerator()
 
     private val primitiveModelProviders = ModelProvider.of(
         JsConstantsModelProvider,

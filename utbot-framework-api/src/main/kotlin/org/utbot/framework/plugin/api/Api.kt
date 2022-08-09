@@ -637,6 +637,8 @@ open class JsClassId(
 
 }
 
+class JsEmptyClassId(): JsClassId("empty")
+
 class JsMethodId(
     override var classId: JsClassId,
     override val name: String,

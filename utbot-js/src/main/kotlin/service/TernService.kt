@@ -1,4 +1,4 @@
-package utils
+package service
 
 import com.oracle.js.parser.ir.ClassNode
 import com.oracle.js.parser.ir.FunctionNode
@@ -8,9 +8,11 @@ import org.json.JSONException
 import org.json.JSONObject
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMultipleClassId
-import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 import parser.JsParserUtils
+import utils.JsCmdExec
+import utils.MethodTypes
+import utils.constructClass
 
 /*
     NOTE: this approach is quite bad, but we failed to implement alternatives.
@@ -21,16 +23,20 @@ import parser.JsParserUtils
 /**
  * Installs and sets up scripts for running Tern.js type inferencer.
  */
-object TernService {
+class TernService(val context: ServiceContext) {
 
-    var projectPath = ""
-
-    var filePathToInference = ""
-
-    var trimmedFileText = ""
-
-    const val utbotDir = "utbotJs"
-
+    companion object {
+        private const val packageJsonCode = """
+{
+    "name": "utbotTern",
+    "version": "1.0.0",
+    "type": "module",
+    "dependencies": {
+        "tern": "^0.24.3"
+    }
+}
+    """
+    }
     private fun ternScriptCode() = """
 // @ts-ignore        
 import * as tern from "tern/lib/tern.js";
@@ -73,30 +79,25 @@ function test(options) {
     runTest(options);
 }
 
-test("$filePathToInference")
-    """
-
-    private const val packageJsonCode = """
-{
-    "name": "utbotTern",
-    "version": "1.0.0",
-    "type": "module",
-    "dependencies": {
-        "tern": "^0.24.3"
-    }
-}
+test("${context.filePathToInference}")
     """
 
     private lateinit var json: JSONObject
 
     fun run() {
-        setupTernEnv("$projectPath/$utbotDir")
-        installDeps("$projectPath/$utbotDir")
-        runTypeInferencer()
+        with(context) {
+            setupTernEnv("$projectPath/$utbotDir")
+            installDeps("$projectPath/$utbotDir")
+            runTypeInferencer()
+        }
     }
 
     private fun installDeps(path: String) {
-        JsCmdExec.runCommand("npm install tern -l", path)
+        JsCmdExec.runCommand(
+            "npm install tern -l",
+            path,
+            true,
+        )
     }
 
     private fun setupTernEnv(path: String) {
@@ -110,8 +111,14 @@ test("$filePathToInference")
     }
 
     private fun runTypeInferencer() {
-        val reader = JsCmdExec.runCommand("node $projectPath/$utbotDir/ternScript.js", "$projectPath/$utbotDir/")
-        json = JSONObject(reader.readText())
+        with(context) {
+            val reader = JsCmdExec.runCommand(
+                "node ${projectPath}/$utbotDir/ternScript.js",
+                "$projectPath/$utbotDir/",
+                true,
+            )
+            json = JSONObject(reader.readText())
+        }
     }
 
     fun processConstructor(classNode: ClassNode): List<JsClassId> {
@@ -174,12 +181,12 @@ test("$filePathToInference")
             name.contains('|') -> JsMultipleClassId(name.toLowerCase())
             else -> JsClassId(name.toLowerCase())
         }
-       return when {
-            classId.isJsBasic || classId is JsMultipleClassId -> classId
-            else -> {
-                val classNode = JsParserUtils.searchForClassDecl(name, trimmedFileText)
-                JsClassId(name).constructClass(classNode)
-            }
+
+        return try {
+            val classNode = JsParserUtils.searchForClassDecl(name, context.trimmedFileText)
+            JsClassId(name).constructClass(this, classNode)
+        } catch (e: Exception) {
+            classId
         }
     }
 }
