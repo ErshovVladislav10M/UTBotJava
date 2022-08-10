@@ -5,6 +5,8 @@ import codegen.JsCodeGenerator
 import com.intellij.lang.ecmascript6.psi.ES6Class
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.oracle.js.parser.ErrorManager
@@ -39,6 +41,9 @@ import service.TernService
 import utils.constructClass
 import utils.toAny
 import java.nio.file.Paths
+import org.jetbrains.kotlin.idea.util.application.runReadAction
+import org.utbot.common.runBlockingWithCancellationPredicate
+import org.utbot.common.runIgnoringCancellationException
 import org.utbot.framework.plugin.api.JsMethodId
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.util.isJsBasic
@@ -84,116 +89,150 @@ object JsDialogProcessor {
     }
 
     private fun createTests(model: JsTestsModel, containingFilePath: String) {
-        val fileText = File(containingFilePath).readText()
-        val regex = Regex("export")
-        // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
-        //  Also general trimming required, for example "export" keyword, etc.
-        val trimmedFileText = fileText.replace(regex, "")
-        val context = ServiceContext(
-            utbotDir = "utbotJs",
-            projectPath = model.project.basePath ?: throw IllegalStateException("Can't access project path."),
-            filePathToInference = containingFilePath,
-            trimmedFileText = trimmedFileText,
-        )
-        // TODO MINOR: do not create existing files
-        val ternService = TernService(context)
-        ternService.run()
-        val exports = mutableSetOf<String>()
-        val file = File(containingFilePath)
-        model.selectedMethods?.forEach { jsMemberInfo ->
-            var parentPsi = PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java)
-            // "toplevelHack" is from JsActionMethods
-            if (parentPsi?.name == null || parentPsi.name == "toplevelHack") {
-                parentPsi = null
-            }
-            val funcNode = getFunctionNode(jsMemberInfo, parentPsi?.name, trimmedFileText)
-            val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(parentPsi.name!!, trimmedFileText) else null
-            val classId = parentPsi?.let {
-                JsClassId(it.name!!).constructClass(ternService, classNode)
-            } ?: JsClassId("undefined").constructClass(ternService, functions = listOf(funcNode))
-            val execId = classId.allMethods.find {
-                it.name == funcNode.name.toString()
-            } ?: throw IllegalStateException()
+        (object : Task.Backgroundable(model.project, "Generate tests") {
+            override fun run(indicator: ProgressIndicator) {
+                runIgnoringCancellationException {
+                    runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
+                        indicator.text = "Generate tests"
+                        val fileText = File(containingFilePath).readText()
+                        val regex = Regex("export")
+                        // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
+                        //  Also general trimming required, for example "export" keyword, etc.
+                        val trimmedFileText = fileText.replace(regex, "")
+                        val context = ServiceContext(
+                            utbotDir = "utbotJs",
+                            projectPath = model.project.basePath
+                                ?: throw IllegalStateException("Can't access project path."),
+                            filePathToInference = containingFilePath,
+                            trimmedFileText = trimmedFileText,
+                        )
+                        // TODO MINOR: do not create existing files
+                        val ternService = TernService(context)
+                        ternService.run()
+                        val exports = mutableSetOf<String>()
+                        val file = File(containingFilePath)
+                        model.selectedMethods?.forEach { jsMemberInfo ->
+                            // TODO SEVERE: remove psi
+                            var parentPsi = runReadAction { PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java) }
+                            // "toplevelHack" is from JsActionMethods
+                            val psiName = runReadAction { parentPsi?.name }
+                            if (psiName == null || psiName == "toplevelHack") {
+                                parentPsi = null
+                            }
+                            val funcNode = getFunctionNode(jsMemberInfo, psiName, trimmedFileText)
+                            val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(
+                                psiName!!,
+                                trimmedFileText
+                            ) else null
+                            val classId = parentPsi?.let {
+                                JsClassId(psiName!!).constructClass(ternService, classNode)
+                            } ?: JsClassId("undefined").constructClass(ternService, functions = listOf(funcNode))
+                            val execId = classId.allMethods.find {
+                                it.name == funcNode.name.toString()
+                            } ?: throw IllegalStateException()
 
-            val obligatoryExport = (classNode?.ident?.name ?: funcNode.ident.name).toString()
-            val collectedExports = collectExports(execId)
-            exports += (collectedExports + obligatoryExport)
-            funcNode.body.accept(JsFuzzerAstVisitor)
-            val methodUnderTestDescription = FuzzedMethodDescription(execId, JsFuzzerAstVisitor.fuzzedConcreteValues).apply {
-                compilableName = funcNode.name.toString()
-                val names = funcNode.parameters.map { it.name.toString() }
-                parameterNameMap = { index -> names.getOrNull(index) }
-            }
-            val fuzzedValues =
-                jsFuzzing(methodUnderTestDescription = methodUnderTestDescription).toList()
-                    .shuffled()
-                    .take(500)
-            val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
-            fuzzedValues.indices.toList().parallelStream().forEach {
-                val scriptText = makeStringForRunJs(fuzzedValues[it], execId, classNode?.ident?.name, trimmedFileText)
-                val id = Thread.currentThread().id
-                val coverageService = CoverageService(context, scriptText, id)
-                coveredBranchesArray[it] = coverageService.getCoveredLines()
-            }
-            val testsForGenerator = mutableListOf<UtExecution>()
-            analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
-                val param = fuzzedValues[paramIndex]
-                val utConstructor = JsUtModelConstructor()
-                val scriptText = makeStringForRunJs(param, execId, classNode?.ident?.name, trimmedFileText)
-                val (returnValue, valueClassId) = runJs(
-                    scriptText,
-                    containingFilePath.replaceAfterLast("/", "")
-                ).toAny(execId.returnType)
-                val result = utConstructor.construct(returnValue, valueClassId)
-                val thisInstance = when {
-                    execId.isStatic -> null
-                    classId.allConstructors.first().parameters.isEmpty() -> {
-                        val id = JsObjectModelProvider.idGenerator.asInt
-                        val constructor = classId.allConstructors.first()
-                        val instantiationChain = mutableListOf<UtStatementModel>()
-                        UtAssembleModel(
-                            id,
-                            constructor.classId,
-                            "${constructor.classId.name}${constructor.parameters}#" + id.toString(16),
-                            instantiationChain = instantiationChain
-                        ).apply {
-                            instantiationChain += UtExecutableCallModel(null, constructor, emptyList(), this)
+                            val obligatoryExport = (classNode?.ident?.name ?: funcNode.ident.name).toString()
+                            val collectedExports = collectExports(execId)
+                            exports += (collectedExports + obligatoryExport)
+                            funcNode.body.accept(JsFuzzerAstVisitor)
+                            val methodUnderTestDescription =
+                                FuzzedMethodDescription(execId, JsFuzzerAstVisitor.fuzzedConcreteValues).apply {
+                                    compilableName = funcNode.name.toString()
+                                    val names = funcNode.parameters.map { it.name.toString() }
+                                    parameterNameMap = { index -> names.getOrNull(index) }
+                                }
+                            val fuzzedValues =
+                                jsFuzzing(methodUnderTestDescription = methodUnderTestDescription).toList()
+                                    .shuffled()
+                                    .take(500)
+                            val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
+                            fuzzedValues.indices.toList().parallelStream().forEach {
+                                val scriptText =
+                                    makeStringForRunJs(
+                                        fuzzedValues[it],
+                                        execId,
+                                        classNode?.ident?.name,
+                                        trimmedFileText
+                                    )
+                                val id = Thread.currentThread().id
+                                val coverageService = CoverageService(context, scriptText, id)
+                                coveredBranchesArray[it] = coverageService.getCoveredLines()
+                            }
+                            val testsForGenerator = mutableListOf<UtExecution>()
+                            analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
+                                val param = fuzzedValues[paramIndex]
+                                val utConstructor = JsUtModelConstructor()
+                                val scriptText =
+                                    makeStringForRunJs(param, execId, classNode?.ident?.name, trimmedFileText)
+                                val (returnValue, valueClassId) = runJs(
+                                    scriptText,
+                                    containingFilePath.replaceAfterLast("/", "")
+                                ).toAny(execId.returnType)
+                                val result = utConstructor.construct(returnValue, valueClassId)
+                                val thisInstance = when {
+                                    execId.isStatic -> null
+                                    classId.allConstructors.first().parameters.isEmpty() -> {
+                                        val id = JsObjectModelProvider.idGenerator.asInt
+                                        val constructor = classId.allConstructors.first()
+                                        val instantiationChain = mutableListOf<UtStatementModel>()
+                                        UtAssembleModel(
+                                            id,
+                                            constructor.classId,
+                                            "${constructor.classId.name}${constructor.parameters}#" + id.toString(16),
+                                            instantiationChain = instantiationChain
+                                        ).apply {
+                                            instantiationChain += UtExecutableCallModel(
+                                                null,
+                                                constructor,
+                                                emptyList(),
+                                                this
+                                            )
+                                        }
+                                    }
+
+                                    else -> {
+                                        JsObjectModelProvider.generate(
+                                            FuzzedMethodDescription(
+                                                "thisInstance",
+                                                voidClassId,
+                                                listOf(classId),
+                                                JsFuzzerAstVisitor.fuzzedConcreteValues
+                                            )
+                                        ).take(10).toList()
+                                            .shuffled().map { it.value.model }.first()
+                                    }
+                                }
+                                val initEnv = EnvironmentModels(thisInstance, param.map { it.model }, mapOf())
+                                testsForGenerator.add(
+                                    UtExecution(
+                                        stateBefore = initEnv,
+                                        stateAfter = initEnv,
+                                        result = UtExecutionSuccess(result),
+                                        instrumentation = emptyList(),
+                                        path = mutableListOf(),
+                                        fullPath = emptyList(),
+                                    )
+                                )
+                            }
+                            val testSet = CgMethodTestSet(
+                                execId,
+                                testsForGenerator
+                            )
+                            val codeGen = JsCodeGenerator(
+                                classId,
+                                mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
+                            )
+                            val generatedCode = codeGen.generateAsStringWithTestReport(listOf(testSet)).generatedCode
+                            val fileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
+                            val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$fileName")
+                            testFile.writeText(generatedCode)
+                            testFile.createNewFile()
                         }
-                    }
-                    else -> {
-                        JsObjectModelProvider.generate(
-                            FuzzedMethodDescription("thisInstance", voidClassId, listOf(classId), JsFuzzerAstVisitor.fuzzedConcreteValues)
-                        ).take(10).toList()
-                            .shuffled().map { it.value.model }.first()
+                        manageExports(file, exports.toList())
                     }
                 }
-                val initEnv = EnvironmentModels(thisInstance, param.map { it.model }, mapOf())
-                testsForGenerator.add(
-                    UtExecution(
-                        stateBefore = initEnv,
-                        stateAfter = initEnv,
-                        result = UtExecutionSuccess(result),
-                        instrumentation = emptyList(),
-                        path = mutableListOf(),
-                        fullPath = emptyList(),
-                    )
-                )
             }
-            val testSet = CgMethodTestSet(
-                execId,
-                testsForGenerator
-            )
-            val codeGen = JsCodeGenerator(
-                classId,
-                mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
-            )
-            val generatedCode = codeGen.generateAsStringWithTestReport(listOf(testSet)).generatedCode
-            val fileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
-            val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$fileName")
-            testFile.writeText(generatedCode)
-            testFile.createNewFile()
-        }
-        manageExports(file, exports.toList())
+        }).queue()
     }
 
     private fun collectExports(methodId: JsMethodId): List<String> {
@@ -219,17 +258,13 @@ object JsDialogProcessor {
                 val regex = Regex("$startComment\n(.*)\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {
                     val swappedText = fileText.replace(it, "export {$exportLine}")
-                    runWriteAction {
-                        file.writeText(swappedText)
-                    }
+                    file.writeText(swappedText)
                 }
             }
             else -> {
-                runWriteAction {
-                    file.appendText("\n$startComment")
-                    file.appendText("\nexport {$exportLine}")
-                    file.appendText("\n$endComment")
-                }
+                file.appendText("\n$startComment")
+                file.appendText("\nexport {$exportLine}")
+                file.appendText("\n$endComment")
             }
         }
     }
