@@ -11,18 +11,9 @@ class CoverageService(
     private val id: Long,
 ) {
 
-
-    private val configText = """
-{
-    "reporter": ["json"],
-    "report-dir": "./coverage$id"
-}
-    """
-
     init {
         with(context) {
             createTempScript("$projectPath/$utbotDir")
-            createConfig("$projectPath/$utbotDir/.c8$id.json")
             generateCoverageReport("$projectPath/$utbotDir", "temp$id.js")
         }
     }
@@ -34,19 +25,12 @@ class CoverageService(
         }
         removeTempFiles()
         val json = JSONObject(jsonText)
-        // TODO MINOR: collect branches, not statements
         val coveredStatements = json
             .getJSONObject(json.keys().next())
             .getJSONObject("s")
         return coveredStatements.keySet().mapNotNull {
             if (coveredStatements.getInt(it) == 1) it.toInt() else null
         }.toSet()
-    }
-
-    private fun createConfig(fileName: String) {
-        val file = File(fileName)
-        file.writeText(configText)
-        file.createNewFile()
     }
 
     private fun removeTempFiles() {
@@ -60,7 +44,7 @@ class CoverageService(
     private fun generateCoverageReport(workingDir: String, filePath: String) {
         File("$workingDir/coverage$id").mkdir()
         JsCmdExec.runCommand(
-            "c8 --config=.c8$id.json node $filePath",
+            "c8 --report-dir=\"./coverage$id\" --reporter=\"json\" node $filePath",
             workingDir,
             true,
         )

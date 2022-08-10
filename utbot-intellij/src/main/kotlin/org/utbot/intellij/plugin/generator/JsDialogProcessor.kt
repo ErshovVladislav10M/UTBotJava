@@ -127,7 +127,6 @@ object JsDialogProcessor {
                 jsFuzzing(methodUnderTestDescription = methodUnderTestDescription).toList()
                     .shuffled()
                     .take(500)
-            if (fuzzedValues.size >= 500) println("Shapka!")
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
             fuzzedValues.indices.toList().parallelStream().forEach {
                 val scriptText = makeStringForRunJs(fuzzedValues[it], execId, classNode?.ident?.name, trimmedFileText)
