@@ -299,7 +299,9 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
                         } else {
                             resultModel = result
                             val expected = variableConstructor.getOrCreateVariable(result, "expected")
-                            assertEquality(expected, actual)
+                            if (codegenLanguage == CodegenLanguage.JS) {
+                                testFrameworkManager.assertEquals(expected, actual)
+                            } else assertEquality(expected, actual)
                         }
                     }
                     .onFailure { exception ->

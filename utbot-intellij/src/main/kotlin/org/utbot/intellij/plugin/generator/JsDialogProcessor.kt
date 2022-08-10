@@ -40,6 +40,7 @@ import utils.constructClass
 import utils.toAny
 import java.nio.file.Paths
 import org.utbot.framework.plugin.api.JsMethodId
+import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
 import service.CoverageService
@@ -147,8 +148,17 @@ object JsDialogProcessor {
                 val thisInstance = when {
                     execId.isStatic -> null
                     classId.allConstructors.first().parameters.isEmpty() -> {
-                        // TODO MINOR: make UtAssembleModel here for prettier generated code
-                        null
+                        val id = JsObjectModelProvider.idGenerator.asInt
+                        val constructor = classId.allConstructors.first()
+                        val instantiationChain = mutableListOf<UtStatementModel>()
+                        UtAssembleModel(
+                            id,
+                            constructor.classId,
+                            "${constructor.classId.name}${constructor.parameters}#" + id.toString(16),
+                            instantiationChain = instantiationChain
+                        ).apply {
+                            instantiationChain += UtExecutableCallModel(null, constructor, emptyList(), this)
+                        }
                     }
                     else -> {
                         JsObjectModelProvider.generate(
@@ -193,6 +203,7 @@ object JsDialogProcessor {
                 res += it.name
             }
         }
+        if (!methodId.returnType.isJsBasic) res += methodId.returnType.name
         return res
     }
 

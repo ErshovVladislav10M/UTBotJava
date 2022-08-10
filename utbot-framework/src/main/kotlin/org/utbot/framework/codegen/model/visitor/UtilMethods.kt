@@ -600,7 +600,7 @@ fun deepEquals(language: CodegenLanguage, mockFrameworkUsed: Boolean, mockFramew
             """.trimIndent()
         }
 
-        CodegenLanguage.JS -> "assert.deepEqual()"
+        CodegenLanguage.JS -> ""
     }
 
 fun arraysDeepEquals(language: CodegenLanguage): String =

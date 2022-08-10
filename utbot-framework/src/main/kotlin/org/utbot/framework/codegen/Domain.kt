@@ -164,7 +164,7 @@ sealed class TestFramework(
     abstract val methodSourceAnnotationId: ClassId
     abstract val methodSourceAnnotationFqn: String
 
-    val jsAssertEquals by lazy { JsMethodId(JsClassId("assert.equal"), "", jsUndefinedClassId, listOf(
+    val jsAssertEquals by lazy { BuiltinMethodId(JsClassId("assert.deepEqual"), "assert.deepEqual", jsUndefinedClassId, listOf(
         jsUndefinedClassId, jsUndefinedClassId)) }
 
     val assertEquals by lazy { assertionId("assertEquals", objectClassId, objectClassId) }

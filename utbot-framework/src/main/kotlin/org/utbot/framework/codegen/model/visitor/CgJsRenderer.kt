@@ -42,6 +42,7 @@ import org.utbot.framework.codegen.model.tree.CgTypeCast
 import org.utbot.framework.codegen.model.tree.CgVariable
 import org.utbot.framework.codegen.model.util.CgPrinter
 import org.utbot.framework.codegen.model.util.CgPrinterImpl
+import org.utbot.framework.plugin.api.BuiltinMethodId
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.TypeParameters
@@ -273,16 +274,12 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
             caller.accept(this)
             renderAccess(caller)
         } else {
-            // for static methods render declaring class only if required
             val method = element.executableId
-            // TODO SEVERE: refactor this spaghetti code
-            if (method.isStatic) {
+            if (method is BuiltinMethodId) {
+                
+            } else if (method.isStatic) {
                 val line = if (method.classId.toString() == "undefined") "" else "${method.classId}."
                 print("fileUnderTest.$line")
-            } else if (method.classId.toString() == "assert.equal") {
-                print("assert.equal")
-            } else if (method.classId.toString() != "undefined") {
-                print("new fileUnderTest.${method.classId}().")
             } else {
                 print("fileUnderTest.")
             }
