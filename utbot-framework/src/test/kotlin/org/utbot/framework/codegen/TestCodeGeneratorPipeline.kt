@@ -7,16 +7,16 @@ import org.utbot.common.bracket
 import org.utbot.common.info
 import org.utbot.common.packageName
 import org.utbot.examples.TestFrameworkConfiguration
-import org.utbot.examples.conflictTriggers
 import org.utbot.framework.codegen.ExecutionStatus.SUCCESS
 import org.utbot.framework.codegen.model.CodeGenerator
 import org.utbot.framework.plugin.api.CodegenLanguage
+import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.MockStrategyApi
-import org.utbot.framework.plugin.api.UtMethod
 import org.utbot.framework.plugin.api.UtMethodTestSet
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.description
+import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.withUtContext
 import kotlin.reflect.KClass
 
@@ -73,12 +73,8 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
 
             val codegenLanguage = testFrameworkConfiguration.codegenLanguage
             val parametrizedTestSource = testFrameworkConfiguration.parametrizedTestSource
-            val isParametrizedAndMocked = testFrameworkConfiguration.isParametrizedAndMocked
 
             val testClass = callToCodeGenerator(testSets, classUnderTest)
-
-            // clear triggered flags from the current launch in order to get ready for the next possible run
-            conflictTriggers.clear()
 
             // actual number of the tests in the generated testClass
             val generatedMethodsCount = testClass
@@ -101,11 +97,8 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
                     trimmedLine.startsWith(prefix)
                 }
             // expected number of the tests in the generated testClass
-            // if force mocking took place in parametrized test generation,
-            // we don't generate tests at all
             val expectedNumberOfGeneratedMethods =
-                if (isParametrizedAndMocked) 0
-                else when (parametrizedTestSource) {
+                when (parametrizedTestSource) {
                     ParametrizedTestSource.DO_NOT_PARAMETRIZE -> testSets.sumOf { it.executions.size }
                     ParametrizedTestSource.PARAMETRIZE -> testSets.filter { it.executions.isNotEmpty() }.size
                 }
@@ -137,10 +130,17 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
                     "Errors regions has been generated: $errorText"
                 }
 
-                require(generatedMethodsCount == expectedNumberOfGeneratedMethods) {
-                    "Something went wrong during the code generation for ${classUnderTest.simpleName}. " +
-                            "Expected to generate $expectedNumberOfGeneratedMethods test methods, " +
-                            "but got only $generatedMethodsCount"
+                // for now, we skip a comparing of generated and expected test methods
+                // in parametrized test generation mode
+                // because there are problems with determining expected number of methods,
+                // due to a feature that generates several separated parametrized tests
+                // when we have several executions with different result type
+                if (parametrizedTestSource != ParametrizedTestSource.PARAMETRIZE) {
+                    require(generatedMethodsCount == expectedNumberOfGeneratedMethods) {
+                        "Something went wrong during the code generation for ${classUnderTest.simpleName}. " +
+                                "Expected to generate $expectedNumberOfGeneratedMethods test methods, " +
+                                "but got only $generatedMethodsCount"
+                    }
                 }
             }.onFailure {
                 val classes = listOf(classPipeline).retrieveClasses()
@@ -224,12 +224,12 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
         testSets: List<UtMethodTestSet>,
         classUnderTest: KClass<*>
     ): String {
-        val params = mutableMapOf<UtMethod<*>, List<String>>()
+        val params = mutableMapOf<ExecutableId, List<String>>()
 
         val codeGenerator = with(testFrameworkConfiguration) {
             CodeGenerator(
-                classUnderTest.java,
-                params = params,
+                classUnderTest.id,
+                paramNames = params,
                 testFramework = testFramework,
                 staticsMocking = staticsMocking,
                 forceStaticMocking = forceStaticMocking,
@@ -242,12 +242,7 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
         }
         val testClassCustomName = "${classUnderTest.java.simpleName}GeneratedTest"
 
-        // if force mocking took place in parametrized test generation,
-        // we don't generate tests at all by passing empty list instead of test sets
-        return codeGenerator.generateAsString(
-            if (testFrameworkConfiguration.isParametrizedAndMocked) listOf() else testSets,
-            testClassCustomName
-        )
+        return codeGenerator.generateAsString(testSets, testClassCustomName)
     }
 
     private fun checkPipelinesResults(classesPipelines: List<ClassPipeline>) {
@@ -284,18 +279,17 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
     }
 
     companion object {
-        val CodegenLanguage.defaultCodegenPipeline: TestCodeGeneratorPipeline
-            get() = TestCodeGeneratorPipeline(
-                TestFrameworkConfiguration(
-                    testFramework = TestFramework.defaultItem,
-                    codegenLanguage = this,
-                    mockFramework = MockFramework.defaultItem,
-                    mockStrategy = MockStrategyApi.defaultItem,
-                    staticsMocking = StaticsMocking.defaultItem,
-                    parametrizedTestSource = ParametrizedTestSource.defaultItem,
-                    forceStaticMocking = ForceStaticMocking.defaultItem,
-                )
-            )
+        var currentTestFrameworkConfiguration = defaultTestFrameworkConfiguration()
+
+        fun defaultTestFrameworkConfiguration(language: CodegenLanguage = CodegenLanguage.JAVA) = TestFrameworkConfiguration(
+            testFramework = TestFramework.defaultItem,
+            codegenLanguage = language,
+            mockFramework = MockFramework.defaultItem,
+            mockStrategy = MockStrategyApi.defaultItem,
+            staticsMocking = StaticsMocking.defaultItem,
+            parametrizedTestSource = ParametrizedTestSource.defaultItem,
+            forceStaticMocking = ForceStaticMocking.defaultItem,
+        )
 
         private const val ERROR_REGION_BEGINNING = "///region Errors"
         private const val ERROR_REGION_END = "///endregion"

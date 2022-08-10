@@ -19,7 +19,7 @@ import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.TypeParameters
-import org.utbot.framework.plugin.api.UtArrayModel
+import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.util.booleanClassId
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.intClassId
@@ -75,6 +75,7 @@ interface CgElement {
             is CgDeclaration -> visit(element)
             is CgAssignment -> visit(element)
             is CgTypeCast -> visit(element)
+            is CgIsInstance -> visit(element)
             is CgThisInstance -> visit(element)
             is CgNotNullAssertion -> visit(element)
             is CgVariable -> visit(element)
@@ -83,6 +84,7 @@ interface CgElement {
             is CgNonStaticRunnable -> visit(element)
             is CgStaticRunnable -> visit(element)
             is CgAllocateInitializedArray -> visit(element)
+            is CgArrayInitializer -> visit(element)
             is CgAllocateArray -> visit(element)
             is CgEnumConstantAccess -> visit(element)
             is CgFieldAccess -> visit(element)
@@ -536,6 +538,16 @@ class CgTypeCast(
     override val type: ClassId = targetType
 }
 
+/**
+ * Represents [java.lang.Class.isInstance] method.
+ */
+class CgIsInstance(
+    val classExpression: CgExpression,
+    val value: CgExpression,
+): CgExpression {
+    override val type: ClassId = booleanClassId
+}
+
 // Value
 
 // TODO in general CgLiteral is not CgReferenceExpression because it can hold primitive values
@@ -630,6 +642,7 @@ data class CgParameterDeclaration(
 sealed class CgParameterKind {
     object ThisInstance : CgParameterKind()
     data class Argument(val index: Int) : CgParameterKind()
+    data class Statics(val model: UtModel) : CgParameterKind()
     object ExpectedResult : CgParameterKind()
     object ExpectedException : CgParameterKind()
 }
@@ -699,8 +712,19 @@ open class CgAllocateArray(type: ClassId, elementType: ClassId, val size: Int) :
         }
 }
 
-class CgAllocateInitializedArray(val model: UtArrayModel) :
-    CgAllocateArray(model.classId, model.classId.elementClassId!!, model.length)
+/**
+ * Allocation of an array with initialization. For example: `new String[] {"a", "b", null}`.
+ */
+class CgAllocateInitializedArray(val initializer: CgArrayInitializer) :
+    CgAllocateArray(initializer.arrayType, initializer.elementType, initializer.size)
+
+class CgArrayInitializer(val arrayType: ClassId, val elementType: ClassId, val values: List<CgExpression>) : CgExpression {
+    val size: Int
+        get() = values.size
+
+    override val type: ClassId
+        get() = arrayType
+}
 
 
 // Spread operator (for Kotlin, empty for Java)

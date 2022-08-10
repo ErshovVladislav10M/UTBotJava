@@ -2,7 +2,6 @@ package org.utbot.intellij.plugin.go
 
 import com.goide.psi.GoFunctionOrMethodDeclaration
 import com.intellij.openapi.application.invokeLater
-import com.intellij.openapi.module.Module
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -12,18 +11,16 @@ import org.utbot.go.fuzzer.generateTestCasesForGoFile
 import org.utbot.go.parser.GoParser
 import org.utbot.intellij.plugin.go.codegen.GoCodeGenerationController
 import org.utbot.intellij.plugin.ui.utils.showWarningDialogLater
-import org.utbot.intellij.plugin.ui.utils.testModule
 import java.io.File
 
 object GoDialogProcessor {
 
     fun createDialogAndGenerateTests(
         project: Project,
-        srcModule: Module,
         functionsOrMethod: Set<GoFunctionOrMethodDeclaration>,
         focusedFunctionOrMethod: GoFunctionOrMethodDeclaration?,
     ) {
-        val dialogProcessor = createDialog(project, srcModule, functionsOrMethod, focusedFunctionOrMethod)
+        val dialogProcessor = createDialog(project, functionsOrMethod, focusedFunctionOrMethod)
         if (!dialogProcessor.showAndGet()) return
 
         createTests(project, dialogProcessor.model)
@@ -31,17 +28,12 @@ object GoDialogProcessor {
 
     private fun createDialog(
         project: Project,
-        srcModule: Module,
         functionsOrMethod: Set<GoFunctionOrMethodDeclaration>,
         focusedFunctionOrMethod: GoFunctionOrMethodDeclaration?,
     ): GoDialogWindow {
-        val testModel = srcModule.testModule(project)
-
         return GoDialogWindow(
             GoTestsModel(
                 project,
-                srcModule,
-                testModel,
                 functionsOrMethod,
                 focusedFunctionOrMethod,
             )

@@ -6,10 +6,10 @@ import org.utbot.common.ClassLocation
 import org.utbot.common.FileUtil.findPathToClassFiles
 import org.utbot.common.FileUtil.locateClass
 import org.utbot.common.WorkaroundReason.HACK
-import org.utbot.common.findField
 import org.utbot.common.workaround
 import org.utbot.engine.prettify
 import org.utbot.framework.UtSettings.checkSolverTimeoutMillis
+import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.MockStrategyApi
@@ -27,8 +27,6 @@ import org.utbot.framework.plugin.api.getOrThrow
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.defaultValueModel
 import org.utbot.framework.plugin.api.util.executableId
-import org.utbot.framework.plugin.api.util.fieldId
-import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.framework.plugin.api.util.withUtContext
 import java.nio.file.Path
 import kotlin.reflect.KClass
@@ -38,6 +36,8 @@ import kotlin.reflect.KFunction2
 import kotlin.reflect.KFunction3
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.utbot.framework.UtSettings.useFuzzing
+import org.utbot.framework.codegen.TestCodeGeneratorPipeline
+import org.utbot.framework.util.Conflict
 
 internal abstract class UtModelTestCaseChecker(
     testClass: KClass<*>,
@@ -97,6 +97,13 @@ internal abstract class UtModelTestCaseChecker(
 
             assertTrue(testSet.errors.isEmpty()) {
                 "We have errors: ${testSet.errors.entries.map { "${it.value}: ${it.key}" }.prettify()}"
+            }
+
+            // if force mocking took place in parametrized test generation,
+            // we do not need to process this [testSet]
+            if (TestCodeGeneratorPipeline.currentTestFrameworkConfiguration.isParametrizedAndMocked) {
+                conflictTriggers.reset(Conflict.ForceMockHappened, Conflict.ForceStaticMockHappened)
+                return
             }
 
             val executions = testSet.executions
@@ -167,8 +174,8 @@ internal abstract class UtModelTestCaseChecker(
     /**
      * Finds field model in [UtCompositeModel] and [UtAssembleModel]. For assemble model supports direct field access only.
      */
-    protected fun UtModel.findField(fieldName: String): UtModel =
-        findField(this.classId.jClass.findField(fieldName).fieldId)
+    protected fun UtModel.findField(fieldName: String, declaringClass: ClassId = this.classId): UtModel =
+        findField(FieldId(declaringClass, fieldName))
 
     /**
      * Finds field model in [UtCompositeModel] and [UtAssembleModel]. For assemble model supports direct field access only.

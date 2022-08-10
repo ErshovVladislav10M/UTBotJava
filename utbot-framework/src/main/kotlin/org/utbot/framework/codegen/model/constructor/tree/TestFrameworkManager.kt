@@ -15,7 +15,6 @@ import org.utbot.framework.codegen.model.constructor.context.CgContextOwner
 import org.utbot.framework.codegen.model.constructor.util.CgComponents
 import org.utbot.framework.codegen.model.constructor.util.classCgClassId
 import org.utbot.framework.codegen.model.constructor.util.importIfNeeded
-import org.utbot.framework.codegen.model.tree.CgCommentedAnnotation
 import org.utbot.framework.codegen.model.tree.CgEnumConstantAccess
 import org.utbot.framework.codegen.model.tree.CgExpression
 import org.utbot.framework.codegen.model.tree.CgGetJavaClass
@@ -162,25 +161,51 @@ internal abstract class TestFrameworkManager(val context: CgContext)
             name = timeoutArgumentName,
             value = timeoutMs.resolve()
         )
-        val testAnnotation = collectedTestMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
+        val testAnnotation = collectedMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
 
         if (testAnnotation is CgMultipleArgsAnnotation) {
             testAnnotation.arguments += timeout
         } else {
-            collectedTestMethodAnnotations += CgMultipleArgsAnnotation(
+            collectedMethodAnnotations += CgMultipleArgsAnnotation(
                 testFramework.testAnnotationId,
                 mutableListOf(timeout)
             )
         }
     }
 
+    /**
+     * Supplements TestNG @Test annotation with a description.
+     * It looks like @Test(description="...")
+     *
+     * Should be used only with TestNG.
+     * @see <a href="https://github.com/UnitTestBot/UTBotJava/issues/576">issue-576 on GitHub</a>
+     */
+    open fun addTestDescription(description: String?) {
+        if (description == null) return
+        val testAnnotation =
+            collectedMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
+
+        val descriptionArgument = CgNamedAnnotationArgument("description", stringLiteral(description))
+        if (testAnnotation is CgMultipleArgsAnnotation) {
+            testAnnotation.arguments += descriptionArgument
+        } else {
+            collectedMethodAnnotations += CgMultipleArgsAnnotation(
+                testFramework.testAnnotationId,
+                mutableListOf(descriptionArgument)
+            )
+        }
+    }
+
     abstract fun disableTestMethod(reason: String)
 
-    // We add a commented JUnit5 DisplayName annotation here by default,
-    // because other test frameworks do not support such feature.
+    /**
+     * Adds @DisplayName annotation.
+     *
+     * Should be used only with JUnit 5.
+     * @see <a href="https://github.com/UnitTestBot/UTBotJava/issues/576">issue-576 on GitHub</a>
+     */
     open fun addDisplayName(name: String) {
-        val displayName = CgSingleArgAnnotation(Junit5.displayNameClassId, stringLiteral(name))
-        collectedTestMethodAnnotations += CgCommentedAnnotation(displayName)
+        collectedMethodAnnotations += CgSingleArgAnnotation(Junit5.displayNameClassId, stringLiteral(name))
     }
 
     protected fun ClassId.toExceptionClass(): CgExpression =
@@ -241,7 +266,7 @@ internal class TestNgManager(context: CgContext) : TestFrameworkManager(context)
             value = reason.resolve()
         )
 
-        val testAnnotation = collectedTestMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
+        val testAnnotation = collectedMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
         if (testAnnotation is CgMultipleArgsAnnotation) {
             testAnnotation.arguments += disabledAnnotationArgument
 
@@ -271,7 +296,7 @@ internal class TestNgManager(context: CgContext) : TestFrameworkManager(context)
                 testAnnotation.arguments += descriptionTestAnnotationArgument
             }
         } else {
-            collectedTestMethodAnnotations += CgMultipleArgsAnnotation(
+            collectedMethodAnnotations += CgMultipleArgsAnnotation(
                 testFramework.testAnnotationId,
                 mutableListOf(disabledAnnotationArgument, descriptionTestAnnotationArgument)
             )
@@ -291,11 +316,11 @@ internal class Junit4Manager(context: CgContext) : TestFrameworkManager(context)
             name = "expected",
             value = classLiteralAnnotationArgument(exception, codegenLanguage)
         )
-        val testAnnotation = collectedTestMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
+        val testAnnotation = collectedMethodAnnotations.singleOrNull { it.classId == testFramework.testAnnotationId }
         if (testAnnotation is CgMultipleArgsAnnotation) {
             testAnnotation.arguments += expected
         } else {
-            collectedTestMethodAnnotations += CgMultipleArgsAnnotation(testFramework.testAnnotationId, mutableListOf(expected))
+            collectedMethodAnnotations += CgMultipleArgsAnnotation(testFramework.testAnnotationId, mutableListOf(expected))
         }
         block()
     }
@@ -303,7 +328,7 @@ internal class Junit4Manager(context: CgContext) : TestFrameworkManager(context)
     override fun disableTestMethod(reason: String) {
         require(testFramework is Junit4) { "According to settings, JUnit4 was expected, but got: $testFramework" }
 
-        collectedTestMethodAnnotations += CgMultipleArgsAnnotation(
+        collectedMethodAnnotations += CgMultipleArgsAnnotation(
             testFramework.ignoreAnnotationClassId,
             mutableListOf(
                 CgNamedAnnotationArgument(
@@ -339,7 +364,7 @@ internal class Junit5Manager(context: CgContext) : TestFrameworkManager(context)
 
     override fun addDisplayName(name: String) {
         require(testFramework is Junit5) { "According to settings, JUnit5 was expected, but got: $testFramework" }
-        collectedTestMethodAnnotations += statementConstructor.annotation(testFramework.displayNameClassId, name)
+        collectedMethodAnnotations += statementConstructor.annotation(testFramework.displayNameClassId, name)
     }
 
     override fun setTestExecutionTimeout(timeoutMs: Long) {
@@ -358,7 +383,7 @@ internal class Junit5Manager(context: CgContext) : TestFrameworkManager(context)
         )
         importIfNeeded(testFramework.timeunitClassId)
 
-        collectedTestMethodAnnotations += CgMultipleArgsAnnotation(
+        collectedMethodAnnotations += CgMultipleArgsAnnotation(
             Junit5.timeoutClassId,
             timeoutAnnotationArguments
         )
@@ -367,7 +392,7 @@ internal class Junit5Manager(context: CgContext) : TestFrameworkManager(context)
     override fun disableTestMethod(reason: String) {
         require(testFramework is Junit5) { "According to settings, JUnit5 was expected, but got: $testFramework" }
 
-        collectedTestMethodAnnotations += CgMultipleArgsAnnotation(
+        collectedMethodAnnotations += CgMultipleArgsAnnotation(
             testFramework.disabledAnnotationClassId,
             mutableListOf(
                 CgNamedAnnotationArgument(

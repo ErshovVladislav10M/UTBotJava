@@ -7,6 +7,7 @@ import org.utbot.framework.codegen.model.tree.CgAllocateInitializedArray
 import org.utbot.framework.codegen.model.tree.CgAnonymousFunction
 import org.utbot.framework.codegen.model.tree.CgArrayAnnotationArgument
 import org.utbot.framework.codegen.model.tree.CgArrayElementAccess
+import org.utbot.framework.codegen.model.tree.CgArrayInitializer
 import org.utbot.framework.codegen.model.tree.CgAssignment
 import org.utbot.framework.codegen.model.tree.CgBreakStatement
 import org.utbot.framework.codegen.model.tree.CgComment
@@ -41,6 +42,7 @@ import org.utbot.framework.codegen.model.tree.CgGreaterThan
 import org.utbot.framework.codegen.model.tree.CgIfStatement
 import org.utbot.framework.codegen.model.tree.CgIncrement
 import org.utbot.framework.codegen.model.tree.CgInnerBlock
+import org.utbot.framework.codegen.model.tree.CgIsInstance
 import org.utbot.framework.codegen.model.tree.CgLessThan
 import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgLogicalAnd
@@ -179,6 +181,9 @@ interface CgVisitor<R> {
     // Type cast
     fun visit(element: CgTypeCast): R
 
+    // isInstance check
+    fun visit(element: CgIsInstance): R
+
     // This instance
     fun visit(element: CgThisInstance): R
 
@@ -203,6 +208,7 @@ interface CgVisitor<R> {
     // Array allocation
     fun visit(element: CgAllocateArray): R
     fun visit(element: CgAllocateInitializedArray): R
+    fun visit(element: CgArrayInitializer): R
 
     // Spread operator
     fun visit(element: CgSpread): R

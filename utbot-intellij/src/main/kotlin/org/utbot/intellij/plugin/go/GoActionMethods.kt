@@ -9,11 +9,9 @@ import com.intellij.lang.Language
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.module.Module
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.kotlin.idea.util.projectStructure.module
 
 object GoActionMethods {
 
@@ -23,15 +21,13 @@ object GoActionMethods {
     private data class PsiTargets(
         val functionsOrMethods: Set<GoFunctionOrMethodDeclaration>,
         val focusedFunctionOrMethod: GoFunctionOrMethodDeclaration?,
-        val module: Module,
     )
 
     fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val (functionsOrMethods, focusedFunctionOrMethod, module) = getPsiTargets(e) ?: return
+        val (functionsOrMethods, focusedFunctionOrMethod) = getPsiTargets(e) ?: return
         GoDialogProcessor.createDialogAndGenerateTests(
             project,
-            module,
             functionsOrMethods,
             focusedFunctionOrMethod,
         )
@@ -49,7 +45,6 @@ object GoActionMethods {
 
         val file = e.getData(CommonDataKeys.PSI_FILE) as? GoFile ?: return null
         val element = findPsiElement(file, editor) ?: return null
-        val module = element.module ?: return null
 
         val containingFunctionOrMethod = getContainingFunctionOrMethod(element)
         val targetFunctionsOrMethods = extractTargetFunctionsOrMethods(file)
@@ -57,7 +52,6 @@ object GoActionMethods {
         return PsiTargets(
             targetFunctionsOrMethods,
             containingFunctionOrMethod,
-            module,
         )
     }
 

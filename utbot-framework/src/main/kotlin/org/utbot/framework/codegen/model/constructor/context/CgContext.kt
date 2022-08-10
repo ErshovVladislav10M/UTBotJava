@@ -34,6 +34,16 @@ import org.utbot.framework.codegen.model.tree.CgThisInstance
 import org.utbot.framework.codegen.model.tree.CgValue
 import org.utbot.framework.codegen.model.tree.CgVariable
 import org.utbot.framework.codegen.model.util.createTestClassName
+import java.util.IdentityHashMap
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
+import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
+import org.utbot.framework.codegen.model.constructor.builtin.streamsDeepEqualsMethodId
+import org.utbot.framework.codegen.model.tree.CgParameterKind
 import org.utbot.framework.plugin.api.BuiltinClassId
 import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.CodegenLanguage
@@ -42,20 +52,8 @@ import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.UtExecution
-import org.utbot.framework.plugin.api.UtMethod
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtReferenceModel
-import org.utbot.framework.plugin.api.UtMethodTestSet
-import java.util.IdentityHashMap
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.PersistentSet
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.persistentSetOf
-import org.utbot.framework.codegen.model.constructor.builtin.streamsDeepEqualsMethodId
-import org.utbot.framework.codegen.model.tree.CgParameterKind
-import org.utbot.framework.plugin.api.util.executableId
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.isCheckedException
 import org.utbot.framework.plugin.api.util.isSubtypeOf
@@ -99,7 +97,7 @@ internal interface CgContextOwner {
     val collectedExceptions: MutableSet<ClassId>
 
     // annotations required by the current method being built
-    val collectedTestMethodAnnotations: MutableSet<CgAnnotation>
+    val collectedMethodAnnotations: MutableSet<CgAnnotation>
 
     // imports required by the test class being built
     val collectedImports: MutableSet<Import>
@@ -121,7 +119,7 @@ internal interface CgContextOwner {
     val prevStaticFieldValues: MutableMap<FieldId, CgVariable>
 
     // names of parameters of methods under test
-    val paramNames: Map<UtMethod<*>, List<String>>
+    val paramNames: Map<ExecutableId, List<String>>
 
     // UtExecution we currently generate a test method for.
     // It is null when no test method is being generated at the moment.
@@ -173,10 +171,14 @@ internal interface CgContextOwner {
     // a variable representing an actual result of the method under test call
     var actual: CgVariable
 
+    // a variable representing if test method contains reflective call or not
+    // and should we catch exceptions like InvocationTargetException or not so on
+    var containsReflectiveCall: Boolean
+
     // map from a set of tests for a method to another map
     // which connects code generation error message
     // with the number of times it occurred
-    val codeGenerationErrors: MutableMap<UtMethodTestSet, MutableMap<String, Int>>
+    val codeGenerationErrors: MutableMap<CgMethodTestSet, MutableMap<String, Int>>
 
     // package for generated test class
     val testClassPackageName: String
@@ -233,8 +235,8 @@ internal interface CgContextOwner {
             currentBlock = currentBlock.add(it)
         }
 
-    fun updateCurrentExecutable(method: UtMethod<*>) {
-        currentExecutable = method.callable.executableId
+    fun updateCurrentExecutable(executableId: ExecutableId) {
+        currentExecutable = executableId
     }
 
     fun addExceptionIfNeeded(exception: ClassId) {
@@ -259,7 +261,7 @@ internal interface CgContextOwner {
     }
 
     fun addAnnotation(annotation: CgAnnotation) {
-        if (collectedTestMethodAnnotations.add(annotation)) {
+        if (collectedMethodAnnotations.add(annotation)) {
             importIfNeeded(annotation.classId) // TODO: check how JUnit annotations are loaded
         }
     }
@@ -391,7 +393,7 @@ internal data class CgContext(
     override val collectedTestClassInterfaces: MutableSet<ClassId> = mutableSetOf(),
     override val collectedTestClassAnnotations: MutableSet<CgAnnotation> = mutableSetOf(),
     override val collectedExceptions: MutableSet<ClassId> = mutableSetOf(),
-    override val collectedTestMethodAnnotations: MutableSet<CgAnnotation> = mutableSetOf(),
+    override val collectedMethodAnnotations: MutableSet<CgAnnotation> = mutableSetOf(),
     override val collectedImports: MutableSet<Import> = mutableSetOf(),
     override val importedStaticMethods: MutableSet<MethodId> = mutableSetOf(),
     override val importedClasses: MutableSet<ClassId> = mutableSetOf(),
@@ -399,7 +401,7 @@ internal data class CgContext(
     override val testMethods: MutableList<CgTestMethod> = mutableListOf(),
     override val existingMethodNames: MutableSet<String> = mutableSetOf(),
     override val prevStaticFieldValues: MutableMap<FieldId, CgVariable> = mutableMapOf(),
-    override val paramNames: Map<UtMethod<*>, List<String>>,
+    override val paramNames: Map<ExecutableId, List<String>>,
     override var currentExecution: UtExecution? = null,
     override val testFramework: TestFramework,
     override val mockFramework: MockFramework,
@@ -415,14 +417,15 @@ internal data class CgContext(
     override var declaredExecutableRefs: PersistentMap<ExecutableId, CgVariable> = persistentMapOf(),
     override var thisInstance: CgValue? = null,
     override val methodArguments: MutableList<CgValue> = mutableListOf(),
-    override val codeGenerationErrors: MutableMap<UtMethodTestSet, MutableMap<String, Int>> = mutableMapOf(),
+    override val codeGenerationErrors: MutableMap<CgMethodTestSet, MutableMap<String, Int>> = mutableMapOf(),
     override val testClassPackageName: String = classUnderTest.packageName,
     override var shouldOptimizeImports: Boolean = false,
     override var testClassCustomName: String? = null,
     override val runtimeExceptionTestsBehaviour: RuntimeExceptionTestsBehaviour =
         RuntimeExceptionTestsBehaviour.defaultItem,
     override val hangingTestsTimeout: HangingTestsTimeout = HangingTestsTimeout(),
-    override val enableTestsTimeout: Boolean = true
+    override val enableTestsTimeout: Boolean = true,
+    override var containsReflectiveCall: Boolean = false,
 ) : CgContextOwner {
     override lateinit var statesCache: EnvironmentFieldStateCache
     override lateinit var actual: CgVariable
