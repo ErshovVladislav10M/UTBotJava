@@ -229,6 +229,7 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
         val codeGenerator = with(testFrameworkConfiguration) {
             CodeGenerator(
                 classUnderTest.id,
+                generateUtilClassFile = generateUtilClassFile,
                 paramNames = params,
                 testFramework = testFramework,
                 staticsMocking = staticsMocking,
@@ -289,6 +290,7 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
             staticsMocking = StaticsMocking.defaultItem,
             parametrizedTestSource = ParametrizedTestSource.defaultItem,
             forceStaticMocking = ForceStaticMocking.defaultItem,
+            generateUtilClassFile = false
         )
 
         private const val ERROR_REGION_BEGINNING = "///region Errors"
