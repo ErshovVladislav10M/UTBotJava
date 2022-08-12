@@ -90,6 +90,7 @@ object JsDialogProcessor {
     private fun createTests(model: JsTestsModel, containingFilePath: String) {
         (object : Task.Backgroundable(model.project, "Generate tests") {
             override fun run(indicator: ProgressIndicator) {
+                Thread.currentThread().contextClassLoader = Context::class.java.classLoader
                 runIgnoringCancellationException {
                     runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
                         indicator.text = "Generate tests"
@@ -326,7 +327,6 @@ object JsDialogProcessor {
     }
 
     private fun getFunctionNode(focusedMethodName: String, parentClassName: String?, fileText: String): FunctionNode {
-        Thread.currentThread().contextClassLoader = Context::class.java.classLoader
         val parser = Parser(
             ScriptEnvironment.builder().build(),
             Source.sourceFor("jsFile", fileText),

@@ -30,7 +30,6 @@ class TernService(val context: ServiceContext) {
 {
     "name": "utbotTern",
     "version": "1.0.0",
-    "type": "module",
     "dependencies": {
         "tern": "^0.24.3"
     }
