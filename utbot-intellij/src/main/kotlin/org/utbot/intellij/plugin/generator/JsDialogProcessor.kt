@@ -95,7 +95,7 @@ object JsDialogProcessor {
                     runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
                         indicator.text = "Generate tests"
                         val fileText = File(containingFilePath).readText()
-                        val regex = Regex("export")
+                        val regex = Regex("module.exports =")
                         // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
                         //  Also general trimming required, for example "export" keyword, etc.
                         val trimmedFileText = fileText.replace(regex, "")
@@ -259,7 +259,7 @@ object JsDialogProcessor {
             fileText.contains("module.exports = {$exportLine}") -> {
             }
             fileText.contains(startComment) && !fileText.contains("module.exports = {$exportLine}") -> {
-                val regex = Regex("$startComment\n(.*)\n$endComment")
+                val regex = Regex("$startComment\n.*\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {
                     val swappedText = fileText.replace(it, "module.exports = {$exportLine}")
                     file.writeText(swappedText)
