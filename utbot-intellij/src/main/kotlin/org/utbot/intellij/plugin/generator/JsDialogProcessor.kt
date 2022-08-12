@@ -259,7 +259,7 @@ object JsDialogProcessor {
             fileText.contains("module.exports = {$exportLine}") -> {
             }
             fileText.contains(startComment) && !fileText.contains("module.exports = {$exportLine}") -> {
-                val regex = Regex("$startComment\n.*\n$endComment")
+                val regex = Regex("\n$startComment\n(.*)\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {
                     val swappedText = fileText.replace(it, "module.exports = {$exportLine}")
                     file.writeText(swappedText)
