@@ -96,7 +96,8 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     private fun configureTestFramework() {
         val selectedTestFramework = testFrameworks.item
         selectedTestFramework.isInstalled = true
-        JsCmdExec.runCommand("npm install -l ${selectedTestFramework.displayName.toLowerCase()}",
+        // TODO SEVERE: move version to TestFramework. Here is a hardcode for mocha
+        JsCmdExec.runCommand("npm install -l ${selectedTestFramework.displayName.toLowerCase()}@8.0.0",
             model.containingFilePath.replaceAfterLast("/", "")
         )
     }

@@ -81,10 +81,6 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
             print("...")
         }
         print(element.name.escapeNamePossibleKeyword())
-//        print(getKotlinClassString(element.type))
-//        if (element.isReferenceType) {
-//            print("?")
-//        }
     }
 
     override fun visit(element: CgStaticsRegion) {
@@ -180,8 +176,9 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
 
     @Suppress("DuplicatedCode")
     override fun visit(element: CgTestClassFile) {
-        println("import * as assert from \"assert\"")
-        println("import * as fileUnderTest from \"./${(context.classUnderTest as JsClassId).filePath.substringAfterLast("/")}\"")
+        println("const assert = require(\"assert\")")
+        println("const fileUnderTest = require(\"./" +
+                "${(context.classUnderTest as JsClassId).filePath.substringAfterLast("/")}\")")
         println()
         element.testClass.accept(this)
     }

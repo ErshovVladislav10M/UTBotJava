@@ -38,18 +38,11 @@ class TernService(val context: ServiceContext) {
     """
     }
     private fun ternScriptCode() = """
-// @ts-ignore        
-import * as tern from "tern/lib/tern.js";
-// @ts-ignore
-import * as condense from "tern/lib/condense.js";
-// @ts-ignore
-import * as util from "tern/test/util.js";
-// @ts-ignore
-import * as fs from "fs";
-// @ts-ignore
-import * as path from "path";
-import * as angular from "tern/plugin/angular.js";
-import * as node from "tern/plugin/node.js";
+const tern = require("tern/lib/tern")
+const condense = require("tern/lib/condense.js")
+const util = require("tern/test/util.js")
+const fs = require("fs")
+const path = require("path")
 
 var condenseDir = "";
 
@@ -117,7 +110,8 @@ test("${context.filePathToInference}")
                 "$projectPath/$utbotDir/",
                 true,
             )
-            json = JSONObject(reader.readText())
+            val text = reader.readText().replaceAfterLast("}", "")
+            json = JSONObject(text)
         }
     }
 

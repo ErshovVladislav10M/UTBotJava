@@ -20,7 +20,6 @@ import fuzzer.providers.JsObjectModelProvider
 import java.io.File
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
-import org.jetbrains.kotlin.idea.util.application.runWriteAction
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
 import org.utbot.framework.plugin.api.JsClassId
@@ -119,7 +118,11 @@ object JsDialogProcessor {
                             if (psiName == null || psiName == "toplevelHack") {
                                 parentPsi = null
                             }
-                            val funcNode = getFunctionNode(jsMemberInfo, psiName, trimmedFileText)
+                            val funcNode = getFunctionNode(
+                                runReadAction { jsMemberInfo.member.name!! },
+                                psiName,
+                                trimmedFileText
+                            )
                             val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(
                                 psiName!!,
                                 trimmedFileText
@@ -252,18 +255,18 @@ object JsDialogProcessor {
         val exportLine = exports.joinToString(", ")
         val fileText = file.readText()
         when {
-            fileText.contains("export {$exportLine}") -> {
+            fileText.contains("module.exports = {$exportLine}") -> {
             }
-            fileText.contains(startComment) && !fileText.contains("export {$exportLine}") -> {
+            fileText.contains(startComment) && !fileText.contains("module.exports = {$exportLine}") -> {
                 val regex = Regex("$startComment\n(.*)\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {
-                    val swappedText = fileText.replace(it, "export {$exportLine}")
+                    val swappedText = fileText.replace(it, "module.exports = {$exportLine}")
                     file.writeText(swappedText)
                 }
             }
             else -> {
                 file.appendText("\n$startComment")
-                file.appendText("\nexport {$exportLine}")
+                file.appendText("\nmodule.exports = {$exportLine}")
                 file.appendText("\n$endComment")
             }
         }
@@ -322,7 +325,7 @@ object JsDialogProcessor {
         return callString
     }
 
-    private fun getFunctionNode(focusedMethod: JSMemberInfo, parentClassName: String?, fileText: String): FunctionNode {
+    private fun getFunctionNode(focusedMethodName: String, parentClassName: String?, fileText: String): FunctionNode {
         Thread.currentThread().contextClassLoader = Context::class.java.classLoader
         val parser = Parser(
             ScriptEnvironment.builder().build(),
@@ -330,7 +333,9 @@ object JsDialogProcessor {
             ErrorManager.ThrowErrorManager()
         )
         val fileNode = parser.parse()
-        val visitor = JsFunctionAstVisitor(focusedMethod.member.name!!, parentClassName)
+        val visitor = JsFunctionAstVisitor(focusedMethodName,
+            if (parentClassName != "toplevelHack") parentClassName else null
+        )
         fileNode.accept(visitor)
         return visitor.targetFunctionNode
     }
