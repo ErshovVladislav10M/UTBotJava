@@ -57,7 +57,7 @@ import org.utbot.framework.codegen.ParametrizedTestSource
 import org.utbot.framework.codegen.RegularImport
 import org.utbot.framework.codegen.StaticImport
 import org.utbot.framework.codegen.model.CodeGenerator
-import org.utbot.framework.codegen.model.CodeGenerationResult
+import org.utbot.framework.codegen.model.CodeGeneratorResult
 import org.utbot.framework.codegen.model.UtilClassKind
 import org.utbot.framework.codegen.model.UtilClassKind.Companion.UT_UTILS_CLASS_NAME
 import org.utbot.framework.codegen.model.constructor.tree.TestsGenerationReport
@@ -96,7 +96,7 @@ object CodeGenerationController {
         var requiredUtilClassKind: UtilClassKind? = null
         var mockFrameworkUsed: Boolean = false
 
-        fun onTestClassGenerated(result: CodeGenerationResult) {
+        fun onTestClassGenerated(result: CodeGeneratorResult) {
             requiredUtilClassKind = maxOfNullable(requiredUtilClassKind, result.utilClassKind)
             mockFrameworkUsed = maxOf(mockFrameworkUsed, result.mockFrameworkUsed)
         }
@@ -615,7 +615,7 @@ object CodeGenerationController {
         testClass: PsiClass,
         testSets: List<UtMethodTestSet>,
         model: GenerateTestsModel,
-        testsCodeWithTestReport: CodeGenerationResult,
+        testsCodeWithTestReport: CodeGeneratorResult,
     ) {
         val project = model.project
         val generatedTestsCode = testsCodeWithTestReport.generatedCode

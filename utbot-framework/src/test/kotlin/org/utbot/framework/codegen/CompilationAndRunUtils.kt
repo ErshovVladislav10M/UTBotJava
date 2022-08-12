@@ -14,6 +14,13 @@ data class ClassUnderTest(
 
 private val logger = KotlinLogging.logger {}
 
+fun writeFile(fileContents: String, targetFile: File): File {
+    val targetDir = targetFile.parentFile
+    targetDir.mkdirs()
+    targetFile.writeText(fileContents)
+    return targetFile
+}
+
 fun writeTest(
     testContents: String,
     testClassName: String,
@@ -26,13 +33,10 @@ fun writeTest(
         File(buildDirectory.toFile(), "${testClassName.substringAfterLast(".")}${generatedLanguage.extension}")
     )
 
-    val targetDir = classUnderTest.generatedTestFile.parentFile
-    targetDir.mkdirs()
     logger.info {
         "File size for ${classUnderTest.testClassSimpleName}: ${FileUtil.byteCountToDisplaySize(testContents.length.toLong())}"
     }
-    classUnderTest.generatedTestFile.writeText(testContents)
-    return classUnderTest.generatedTestFile
+    return writeFile(testContents, classUnderTest.generatedTestFile)
 }
 
 fun compileTests(
