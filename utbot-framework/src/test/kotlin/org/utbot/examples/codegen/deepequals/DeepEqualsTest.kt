@@ -3,20 +3,10 @@ package org.utbot.examples.codegen.deepequals
 import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.DoNotCalculate
 import org.utbot.examples.eq
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation (generics) SAT-1332
-class DeepEqualsTest : UtValueTestCaseChecker(
-    testClass = DeepEqualsTestingClass::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+class DeepEqualsTest : UtValueTestCaseChecker(testClass = DeepEqualsTestingClass::class) {
     @Test
     fun testReturnList() {
         check(

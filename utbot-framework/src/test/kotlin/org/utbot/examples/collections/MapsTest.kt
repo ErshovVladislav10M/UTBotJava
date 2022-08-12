@@ -10,20 +10,10 @@ import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.examples.isException
 import org.utbot.examples.withPushingStateFromPathSelectorForConcrete
 import org.utbot.examples.withoutMinimization
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.MockStrategyApi
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation ($ in names, generics) SAT-1220 SAT-1332
-internal class MapsTest : UtValueTestCaseChecker(
-    testClass = Maps::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class MapsTest : UtValueTestCaseChecker(testClass = Maps::class) {
     @Test
     fun createTest() {
         check(

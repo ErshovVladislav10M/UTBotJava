@@ -5,19 +5,9 @@ import org.utbot.examples.between
 import org.utbot.examples.ge
 import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.examples.isException
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation SAT-1332
-class SetIteratorsTest : UtValueTestCaseChecker(
-    testClass = SetIterators::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+class SetIteratorsTest : UtValueTestCaseChecker(testClass = SetIterators::class) {
     @Test
     fun testIteratorHasNext() {
         check(

@@ -8,19 +8,9 @@ import org.utbot.examples.ge
 import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.examples.isException
 import org.utbot.examples.withoutMinimization
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation SAT-1332
-class MapValuesTest : UtValueTestCaseChecker(
-    testClass = MapValues::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+class MapValuesTest : UtValueTestCaseChecker(testClass = MapValues::class) {
     @Test
     fun testRemoveFromValues() {
         withoutMinimization { // TODO: JIRA:1506

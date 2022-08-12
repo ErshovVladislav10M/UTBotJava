@@ -3,8 +3,6 @@ package org.utbot.examples.mixed
 import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.DoNotCalculate
 import org.utbot.examples.eq
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.framework.plugin.api.UtConcreteValue
 import org.utbot.framework.plugin.api.UtInstrumentation
 import org.utbot.framework.plugin.api.UtModel
@@ -12,14 +10,7 @@ import org.utbot.framework.plugin.api.UtStaticMethodInstrumentation
 import org.utbot.framework.plugin.api.isNull
 import org.junit.jupiter.api.Test
 
-internal class LoggerExampleTest : UtValueTestCaseChecker(
-    testClass = LoggerExample::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class LoggerExampleTest : UtValueTestCaseChecker(testClass = LoggerExample::class) {
     @Test
     fun testExample() {
         checkMocksAndInstrumentation(

@@ -2,19 +2,9 @@ package org.utbot.examples.arrays
 
 import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.eq
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation SAT-1332
-class ArraysOverwriteValueTest : UtValueTestCaseChecker(
-    testClass = ArraysOverwriteValue::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+class ArraysOverwriteValueTest : UtValueTestCaseChecker(testClass = ArraysOverwriteValue::class) {
     @Test
     fun testByteArray() {
         checkParamsMutationsAndResult(

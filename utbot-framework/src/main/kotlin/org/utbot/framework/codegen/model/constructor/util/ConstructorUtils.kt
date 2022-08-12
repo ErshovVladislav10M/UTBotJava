@@ -47,6 +47,7 @@ import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtNullModel
 import org.utbot.framework.plugin.api.UtPrimitiveModel
 import org.utbot.framework.plugin.api.WildcardTypeParameter
+import org.utbot.framework.plugin.api.TypeParameters
 import org.utbot.framework.plugin.api.util.arrayLikeName
 import org.utbot.framework.plugin.api.util.builtinStaticMethodId
 import org.utbot.framework.plugin.api.util.methodId
@@ -129,7 +130,7 @@ internal data class CgFieldState(val variable: CgVariable, val model: UtModel)
 
 data class ExpressionWithType(val type: ClassId, val expression: CgExpression)
 
-val classCgClassId = CgClassId(Class::class.id, typeParameters = WildcardTypeParameter(), isNullable = false)
+val classCgClassId = CgClassId(Class::class.id, TypeParameters(listOf(WildcardTypeParameter)), isNullable = false)
 
 /**
  * A [MethodId] to add an item into [ArrayList].
@@ -241,7 +242,7 @@ internal fun CgContextOwner.importIfNeeded(method: MethodId) {
         .takeIf { currentExecutable != method }
         ?.let {
             importedStaticMethods += method
-            collectedImports += StaticImport(method.classId.canonicalName, method.name)
+            collectedImports += StaticImport(method)
         }
 }
 
@@ -394,7 +395,7 @@ internal operator fun UtArrayModel.get(index: Int): UtModel = stores[index] ?: c
 internal fun ClassId.utilMethodId(name: String, returnType: ClassId, vararg arguments: ClassId): MethodId =
     BuiltinMethodId(this, name, returnType, arguments.toList())
 
-fun ClassId.toImport(): RegularImport = RegularImport(packageName, simpleNameWithEnclosings)
+fun ClassId.toImport(): RegularImport = RegularImport(this)
 
 // Immutable collections utils
 

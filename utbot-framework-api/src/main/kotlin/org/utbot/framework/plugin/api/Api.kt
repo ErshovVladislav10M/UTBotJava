@@ -28,6 +28,7 @@ import org.utbot.framework.plugin.api.util.isPrimitive
 import org.utbot.framework.plugin.api.util.jClass
 import org.utbot.framework.plugin.api.util.longClassId
 import org.utbot.framework.plugin.api.util.method
+import org.utbot.framework.plugin.api.util.objectClassId
 import org.utbot.framework.plugin.api.util.primitiveTypeJvmNameOrNull
 import org.utbot.framework.plugin.api.util.safeJField
 import org.utbot.framework.plugin.api.util.shortClassId
@@ -56,6 +57,7 @@ import kotlin.jvm.internal.CallableReference
 import kotlin.reflect.KCallable
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
+import kotlin.reflect.KType
 import kotlin.reflect.full.instanceParameter
 import kotlin.reflect.jvm.javaConstructor
 import kotlin.reflect.jvm.javaType
@@ -760,8 +762,10 @@ open class ClassId @JvmOverloads constructor(
     open val allConstructors: Sequence<ConstructorId>
         get() = jClass.declaredConstructors.asSequence().map { it.executableId }
 
-    open val typeParameters: TypeParameters
-        get() = TypeParameters()
+    /**
+     * This might cause problems in case of reusing the same [ClassId] for different models.
+     */
+    open val typeParameters: TypeParameters = TypeParameters()
 
     open val outerClass: Class<*>?
         get() = jClass.enclosingClass
@@ -904,6 +908,19 @@ open class FieldId(val declaringClass: ClassId, val name: String) {
     open val type: ClassId
         get() = strategy.type
 
+    // required to store and update type parameters
+    // TODO check if by lazy works correctly in newer Kotlin (https://stackoverflow.com/questions/47638464/kotlin-lazy-var-throwing-classcastexception-kotlin-uninitialized-value)
+    // val fixedType: ClassId by lazy { type }
+    private var hiddenFixedType: ClassId? = null
+
+    val fixedType: ClassId
+        get() {
+            if (hiddenFixedType == null) {
+                hiddenFixedType = type
+            }
+            return hiddenFixedType!!
+        }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -978,6 +995,11 @@ sealed class ExecutableId : StatementId() {
     abstract val isPublic: Boolean
     abstract val isProtected: Boolean
     abstract val isPrivate: Boolean
+
+    /**
+     * This might cause problems in case of reusing the same [ExecutableId] for different models.
+     */
+    val typeParameters: TypeParameters = TypeParameters()
 
     val isPackagePrivate: Boolean
         get() = !(isPublic || isProtected || isPrivate)
@@ -1064,9 +1086,31 @@ class BuiltinMethodId(
     override val isPrivate: Boolean = false
 ) : MethodId(classId, name, returnType, parameters)
 
-open class TypeParameters(val parameters: List<ClassId> = emptyList())
+open class TypeParameters(var parameters: List<ClassId> = emptyList()) {
+    fun copyFromClassId(classId: ClassId) {
+        parameters = classId.typeParameters.parameters
+    }
 
-class WildcardTypeParameter : TypeParameters(emptyList())
+    fun fromType(type: KType) {
+        if (type.arguments.isEmpty()) return
+
+        parameters = type.arguments.map {
+            when (val clazz = it.type?.classifier) {
+                is KClass<*> -> {
+                    val classId = clazz.id
+                    it.type?.let { t ->
+                        classId.typeParameters.fromType(t)
+                    } ?: error("")
+
+                    classId
+                }
+                else -> objectClassId
+            }
+        }
+    }
+}
+
+object WildcardTypeParameter: ClassId("org.utbot.framework.plugin.api.WildcardTypeParameter")
 
 interface CodeGenerationSettingItem {
     val displayName: String

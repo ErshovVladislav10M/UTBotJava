@@ -5,20 +5,10 @@ import org.utbot.examples.DoNotCalculate
 import org.utbot.examples.eq
 import org.utbot.examples.ge
 import org.utbot.examples.ignoreExecutionsNumber
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation SAT-1332
-internal class InstanceOfExampleTest : UtValueTestCaseChecker(
-    testClass = InstanceOfExample::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class InstanceOfExampleTest : UtValueTestCaseChecker(testClass = InstanceOfExample::class) {
     @Test
     fun testSimpleInstanceOf() {
         check(

@@ -8,19 +8,9 @@ import org.utbot.examples.eq
 import org.utbot.examples.ge
 import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.examples.isException
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation SAT-1332
-internal class ArrayOfObjectsTest : UtValueTestCaseChecker(
-    testClass = ArrayOfObjects::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class ArrayOfObjectsTest : UtValueTestCaseChecker(testClass = ArrayOfObjects::class) {
     @Test
     fun testDefaultValues() {
         check(

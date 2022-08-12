@@ -4,19 +4,10 @@ import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.DoNotCalculate
 import org.utbot.examples.eq
 import org.utbot.examples.withoutMinimization
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-internal class LongWrapperTest : UtValueTestCaseChecker(
-    testClass = LongWrapper::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class LongWrapperTest : UtValueTestCaseChecker(testClass = LongWrapper::class) {
     @Test
     fun primitiveToWrapperTest() {
         check(

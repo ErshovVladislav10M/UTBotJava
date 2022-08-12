@@ -4,19 +4,9 @@ import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.DoNotCalculate
 import org.utbot.examples.eq
 import org.utbot.examples.isException
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation (generics) SAT-1332
-internal class LinkedListsTest : UtValueTestCaseChecker(
-    testClass = LinkedLists::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class LinkedListsTest : UtValueTestCaseChecker(testClass = LinkedLists::class) {
 
     @Test
     fun testSet() {

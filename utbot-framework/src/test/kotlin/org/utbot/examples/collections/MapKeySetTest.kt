@@ -10,19 +10,9 @@ import org.utbot.examples.ignoreExecutionsNumber
 import org.utbot.examples.isException
 import org.utbot.examples.withPushingStateFromPathSelectorForConcrete
 import org.utbot.examples.withoutMinimization
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation SAT-1332
-class MapKeySetTest : UtValueTestCaseChecker(
-    testClass = MapKeySet::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+class MapKeySetTest : UtValueTestCaseChecker(testClass = MapKeySet::class) {
     @Test
     fun testRemoveFromKeySet() {
         withoutMinimization { // TODO: JIRA:1506

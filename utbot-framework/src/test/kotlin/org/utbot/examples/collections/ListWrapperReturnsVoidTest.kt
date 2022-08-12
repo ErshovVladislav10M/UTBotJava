@@ -4,19 +4,9 @@ import org.utbot.examples.UtValueTestCaseChecker
 import org.utbot.examples.DoNotCalculate
 import org.utbot.examples.eq
 import org.utbot.examples.isException
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Test
 
-// TODO failed Kotlin compilation ($ in function names, generics) SAT-1220 SAT-1332
-internal class ListWrapperReturnsVoidTest : UtValueTestCaseChecker(
-    testClass = ListWrapperReturnsVoidExample::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class ListWrapperReturnsVoidTest : UtValueTestCaseChecker(testClass = ListWrapperReturnsVoidExample::class) {
     @Test
     fun testRunForEach() {
         checkWithException(

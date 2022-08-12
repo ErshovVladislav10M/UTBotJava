@@ -146,7 +146,8 @@ private fun pathSelector(graph: InterProceduralUnitGraph, typeRegistry: TypeRegi
 
 class UtBotSymbolicEngine(
     private val controller: EngineController,
-    private val methodUnderTest: UtMethod<*>,
+    /** methodUnderTest is internal to use in [org.utbot.framework.plugin.api.TestFlow.processGenerics]. **/
+    internal val methodUnderTest: UtMethod<*>,
     classpath: String,
     dependencyPaths: String,
     mockStrategy: MockStrategy = NO_MOCKS,

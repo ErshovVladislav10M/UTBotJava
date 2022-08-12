@@ -11,20 +11,11 @@ import org.utbot.examples.isException
 import org.utbot.examples.keyMatch
 import org.utbot.examples.withPushingStateFromPathSelectorForConcrete
 import org.utbot.examples.withoutMinimization
-import org.utbot.framework.codegen.CodeGeneration
-import org.utbot.framework.plugin.api.CodegenLanguage
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.utbot.examples.withSolverTimeoutInMillis
 
-internal class StringExamplesTest : UtValueTestCaseChecker(
-    testClass = StringExamples::class,
-    testCodeGeneration = true,
-    languagePipelines = listOf(
-        CodeGenerationLanguageLastStage(CodegenLanguage.JAVA),
-        CodeGenerationLanguageLastStage(CodegenLanguage.KOTLIN, CodeGeneration)
-    )
-) {
+internal class StringExamplesTest : UtValueTestCaseChecker(testClass = StringExamples::class) {
     @Test
     fun testByteToString() {
         // TODO related to the https://github.com/UnitTestBot/UTBotJava/issues/131
