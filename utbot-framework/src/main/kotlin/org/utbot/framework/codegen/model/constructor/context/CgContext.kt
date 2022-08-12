@@ -476,7 +476,7 @@ internal data class CgContext(
         get() = if (generateUtilClassFile) {
             UtilClassFileMethodProvider
         } else {
-            TestClassUtilMethodProvider(currentTestClass)
+            TestClassUtilMethodProvider(outerMostTestClass)
         }
 
     override lateinit var currentTestClass: ClassId
