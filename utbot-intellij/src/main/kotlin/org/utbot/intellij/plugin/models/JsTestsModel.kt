@@ -1,6 +1,7 @@
 package org.utbot.intellij.plugin.models
 
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import org.utbot.framework.codegen.TestFramework

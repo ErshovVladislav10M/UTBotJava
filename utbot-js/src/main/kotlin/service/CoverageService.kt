@@ -36,7 +36,6 @@ class CoverageService(
     private fun removeTempFiles() {
         with(context) {
             FileUtils.deleteDirectory(File("$projectPath/$utbotDir/coverage$id"))
-            File("$projectPath/$utbotDir/.c8$id.json").delete()
             File("$projectPath/$utbotDir/temp$id.js").delete()
         }
     }

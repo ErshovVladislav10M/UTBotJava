@@ -561,7 +561,7 @@ object CodeGenerationController {
         }
     }
 
-    private fun unblockDocument(project: Project, document: Document) {
+    fun unblockDocument(project: Project, document: Document) {
         PsiDocumentManager.getInstance(project).apply {
             commitDocument(document)
             doPostponedOperationsAndUnblockDocument(document)
