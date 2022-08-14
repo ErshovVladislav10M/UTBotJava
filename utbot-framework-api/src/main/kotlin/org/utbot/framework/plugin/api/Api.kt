@@ -624,138 +624,77 @@ val ArrayType.id: ClassId
         return ClassId("[$elementTypeName", elementId)
     }
 
-// Base class of Go types for compatibility with UTBot framework.
-sealed class GoClassId(private val goName: String) : ClassId(goName) {
-    override val simpleName: String
-        get() = goName
+/**
+ * Parent class for all Go types for compatibility with UTBot framework.
+ *
+ * To see its children check GoTypesApi.kt at org.utbot.go.api.
+ */
+open class GoClassId(private val goName: String) : ClassId(goName) {
 
     override fun toString(): String = goName
-}
 
-// Represents real Go type.
-class GoTypeId(
-    goName: String,
-    val correspondingKClass: KClass<out Any>? = null, // TODO: move to outer function
-    val isErrorType: Boolean = goName == "error"
-) : GoClassId(goName)
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GoClassId) return false
 
-// Wraps tuple of several classes into one GoClassId. It helps to handle return types of Go functions and methods.
-class GoSyntheticMultipleTypesId(val types: List<GoTypeId>) : GoClassId("synthetic_multiple_types") {
-    override fun toString(): String = types.joinToString(separator = ", ", prefix = "(", postfix = ")")
-}
-
-// There is no void type in Go; therefore, this class solves function or method returns nothing case.
-class GoSyntheticNoTypeId : GoClassId("")
-
-open class GoUtModel(
-    override val classId: GoClassId,
-    open val requiredImports: Set<String>
-) : UtModel(classId)
-
-// NEVER and DEPENDS difference is useful in code generation of assert.Equals(...)
-enum class ExplicitCastMode {
-    REQUIRED, NEVER, DEPENDS
-}
-
-open class GoUtPrimitiveModel(
-    val value: Any,
-    override val classId: GoTypeId,
-    override val requiredImports: Set<String> = emptySet(),
-    open val explicitCastMode: ExplicitCastMode =
-        if (classId.neverRequiresExplicitCast) {
-            ExplicitCastMode.NEVER
-        } else {
-            ExplicitCastMode.DEPENDS
-        }
-) : GoUtModel(classId, requiredImports) {
-
-    override fun toString() = when (explicitCastMode) {
-        ExplicitCastMode.REQUIRED -> toCastedValueGoCode()
-        ExplicitCastMode.DEPENDS, ExplicitCastMode.NEVER -> toValueGoCode()
+        return name == other.name
     }
 
-    open fun toValueGoCode(): String = "$value"
-    fun toCastedValueGoCode(): String = "$classId(${toValueGoCode()})"
+    override fun hashCode(): Int = name.hashCode()
+
+    override val isNullable: Boolean
+        get() = error("not supported")
+    override val canonicalName: String
+        get() = error("not supported")
+    override val simpleName: String
+        get() = error("not supported")
+    override val packageName: String
+        get() = error("not supported")
+    override val isInDefaultPackage: Boolean
+        get() = error("not supported")
+    override val isPublic: Boolean
+        get() = error("not supported")
+    override val isProtected: Boolean
+        get() = error("not supported")
+    override val isPrivate: Boolean
+        get() = error("not supported")
+    override val isFinal: Boolean
+        get() = error("not supported")
+    override val isStatic: Boolean
+        get() = error("not supported")
+    override val isAbstract: Boolean
+        get() = error("not supported")
+    override val isAnonymous: Boolean
+        get() = error("not supported")
+    override val isLocal: Boolean
+        get() = error("not supported")
+    override val isInner: Boolean
+        get() = error("not supported")
+    override val isNested: Boolean
+        get() = error("not supported")
+    override val isSynthetic: Boolean
+        get() = error("not supported")
+    override val allMethods: Sequence<MethodId>
+        get() = error("not supported")
+    override val allConstructors: Sequence<ConstructorId>
+        get() = error("not supported")
+    override val typeParameters: TypeParameters
+        get() = error("not supported")
+    override val outerClass: Class<*>?
+        get() = error("not supported")
+    override val simpleNameWithEnclosings: String
+        get() = error("not supported")
 }
 
-class GoUtFloatNaNModel(
-    typeId: GoTypeId,
-    override val explicitCastMode: ExplicitCastMode =
-        if (typeId != goFloat64TypeId) {
-            ExplicitCastMode.REQUIRED
-        } else {
-            ExplicitCastMode.NEVER
-        }
-) : GoUtPrimitiveModel(
-    NAN_VALUE_GO_CODE,
-    typeId,
-    requiredImports = setOf("math"),
-    explicitCastMode = explicitCastMode
-) {
-    override fun toValueGoCode(): String = NAN_VALUE_GO_CODE
-}
-
-private const val NAN_VALUE_GO_CODE = "math.NaN()"
-
-class GoUtFloatInfModel(
-    val sign: Int,
-    typeId: GoTypeId,
-    override val explicitCastMode: ExplicitCastMode =
-        if (typeId != goFloat64TypeId) {
-            ExplicitCastMode.REQUIRED
-        } else {
-            ExplicitCastMode.NEVER
-        }
-) : GoUtPrimitiveModel(
-    toInfValueGoCode(sign),
-    typeId,
-    requiredImports = setOf("math"),
-    explicitCastMode = explicitCastMode
-) {
-    override fun toValueGoCode(): String = NAN_VALUE_GO_CODE
-}
-
-private fun toInfValueGoCode(sign: Int): String = "math.Inf($sign)"
-
-class GoUtComplexModel(
-    val realValue: GoUtPrimitiveModel,
-    val imagValue: GoUtPrimitiveModel,
-    override val classId: GoTypeId,
-    override val requiredImports: Set<String> = realValue.requiredImports + imagValue.requiredImports,
-    override val explicitCastMode: ExplicitCastMode = ExplicitCastMode.NEVER
-) : GoUtPrimitiveModel(toComplexValueGoCode(realValue, imagValue), classId, requiredImports, explicitCastMode) {
-
-    override fun toValueGoCode(): String = toComplexValueGoCode(realValue, imagValue)
-}
-
-private fun toComplexValueGoCode(realValue: GoUtPrimitiveModel, imagValue: GoUtPrimitiveModel): String =
-    "complex($realValue, $imagValue)"
-
-// TODO: maybe add unsigned kotlin types
-@Suppress("unused")
-@OptIn(ExperimentalUnsignedTypes::class)
-private fun primitiveModelValueToGoClassId(value: Any) = when (value) {
-    is Byte -> goInt8TypeId
-    is UByte -> goUint8TypeId
-    is Short -> goInt16TypeId
-    is UShort -> goUint16TypeId
-    is Char -> goUint16TypeId
-    is Int -> goInt32TypeId
-    is UInt -> goUint32TypeId
-    is Long -> goInt64TypeId
-    is ULong -> goUint64TypeId
-    is Float -> goFloat32TypeId
-    is Double -> goFloat64TypeId
-    is Boolean -> goBoolTypeId
-    is String -> goStringTypeId
-    else -> error("undefined class")
-}
-
-class GoUtNilModel(
-    classId: GoClassId
-) : GoUtModel(classId, emptySet()) {
-    override fun toString() = "nil"
-}
+/**
+ * Parent class for all Go models.
+ *
+ * To see its children check GoUtModelsApi.kt at org.utbot.go.api.
+ */
+open class GoUtModel(
+    override val classId: GoClassId,
+    val requiredImports: Set<String>
+) : UtModel(classId)
 
 /**
  * Converts Soot Type to class id.
@@ -1263,8 +1202,7 @@ enum class CodegenLanguage(
     @Suppress("unused") override val description: String = "Generate unit tests in $displayName"
 ) : CodeGenerationSettingItem {
     JAVA(displayName = "Java"),
-    KOTLIN(displayName = "Kotlin (experimental)"),
-    GO(displayName = "Go");
+    KOTLIN(displayName = "Kotlin (experimental)");
 
     enum class OperatingSystem {
         WINDOWS,
@@ -1289,21 +1227,18 @@ enum class CodegenLanguage(
         get() = when (this) {
             JAVA -> listOf(System.getenv("JAVA_HOME"), "bin", "javac")
             KOTLIN -> listOf(System.getenv("KOTLIN_HOME"), "bin", kotlinCompiler)
-            GO -> listOf(System.getenv("GOROOT"), "bin", "go build")
         }.joinToString(File.separator)
 
     val extension: String
         get() = when (this) {
             JAVA -> ".java"
             KOTLIN -> ".kt"
-            GO -> ".go"
         }
 
     val executorInvokeCommand: String
         get() = when (this) {
             JAVA -> listOf(System.getenv("JAVA_HOME"), "bin", "java")
             KOTLIN -> listOf(System.getenv("JAVA_HOME"), "bin", "java")
-            GO -> emptyList()
         }.joinToString(File.separator)
 
     override fun toString(): String = displayName
@@ -1317,7 +1252,6 @@ enum class CodegenLanguage(
             ).plus(sourcesFiles)
 
             KOTLIN -> listOf("-d", buildDirectory, "-jvm-target", jvmTarget, "-cp", classPath).plus(sourcesFiles)
-            GO -> emptyList()
         }
         if (this == KOTLIN && System.getenv("KOTLIN_HOME") == null) {
             throw RuntimeException("'KOTLIN_HOME' environment variable is not defined. Standard location is {IDEA installation dir}/plugins/Kotlin/kotlinc")

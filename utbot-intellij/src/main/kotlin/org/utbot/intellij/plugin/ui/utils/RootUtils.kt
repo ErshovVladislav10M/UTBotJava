@@ -24,7 +24,6 @@ fun CodegenLanguage.testRootType(): JpsModuleSourceRootType<JavaSourceRootProper
     when (this) {
         CodegenLanguage.JAVA -> JavaSourceRootType.TEST_SOURCE
         CodegenLanguage.KOTLIN -> TestSourceKotlinRootType
-        CodegenLanguage.GO -> TestSourceKotlinRootType // TODO
     }
 
 /**
@@ -34,7 +33,6 @@ fun CodegenLanguage.testResourcesRootType(): JpsModuleSourceRootType<JavaResourc
     when (this) {
         CodegenLanguage.JAVA -> JavaResourceRootType.TEST_RESOURCE
         CodegenLanguage.KOTLIN -> TestResourceKotlinRootType
-        CodegenLanguage.GO -> TODO()
     }
 
 /**

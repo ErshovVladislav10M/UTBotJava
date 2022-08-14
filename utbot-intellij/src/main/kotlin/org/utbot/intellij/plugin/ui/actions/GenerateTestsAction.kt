@@ -20,7 +20,7 @@ import org.jetbrains.kotlin.idea.core.getPackage
 import org.jetbrains.kotlin.idea.core.util.toPsiDirectory
 import org.jetbrains.kotlin.idea.core.util.toPsiFile
 import org.jetbrains.kotlin.psi.KtClass
-import org.utbot.intellij.plugin.go.GoActionMethods
+import org.utbot.intellij.plugin.go.actions.GoActionMethods
 import java.util.*
 
 class GenerateTestsAction : AnAction() {

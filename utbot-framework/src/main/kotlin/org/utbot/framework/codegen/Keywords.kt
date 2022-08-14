@@ -29,21 +29,12 @@ private val kotlinModifierKeywords = setOf(
     "private", "protected", "public", "reified", "sealed", "suspend", "tailrec", "vararg"
 )
 
-private val goKeywords = setOf(
-    "break", "default", "func", "interface", "select",
-    "case", "defer", "go", "map", "struct",
-    "chan", "else", "goto", "package", "switch",
-    "const", "fallthrough", "if", "range", "type",
-    "continue", "for", "import", "return", "var",
-)
-
 // For now we check only hard keywords because others can be used as methods and variables identifiers
 private val kotlinKeywords = kotlinHardKeywords
 
 private fun getLanguageKeywords(codegenLanguage: CodegenLanguage): Set<String> = when(codegenLanguage) {
     CodegenLanguage.JAVA -> javaKeywords
     CodegenLanguage.KOTLIN -> kotlinKeywords
-    CodegenLanguage.GO -> goKeywords
 }
 
 fun isLanguageKeyword(word: String, codegenLanguage: CodegenLanguage): Boolean =
