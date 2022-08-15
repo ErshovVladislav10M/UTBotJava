@@ -176,7 +176,7 @@ test("${context.filePathToInference}")
         }
 
         return try {
-            val classNode = JsParserUtils.searchForClassDecl(name, context.trimmedFileText)
+            val classNode = JsParserUtils.searchForClassDecl(name, context.fileText ?: context.trimmedFileText)
             JsClassId(name).constructClass(this, classNode)
         } catch (e: Exception) {
             classId

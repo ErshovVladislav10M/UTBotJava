@@ -3,6 +3,7 @@ package service
 data class ServiceContext(
     val utbotDir: String,
     val projectPath: String,
-    var filePathToInference: String,
-    var trimmedFileText: String,
+    val filePathToInference: String,
+    val trimmedFileText: String,
+    val fileText: String? = null,
 )

@@ -4,6 +4,8 @@ import api.JsUtModelConstructor
 import codegen.JsCodeGenerator
 import com.intellij.lang.ecmascript6.psi.ES6Class
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.progress.ProgressIndicator
@@ -21,39 +23,42 @@ import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer.jsFuzzing
 import fuzzer.providers.JsObjectModelProvider
 import java.io.File
+import java.nio.file.Paths
+import javafx.application.Application
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
-import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
-import org.utbot.framework.plugin.api.EnvironmentModels
-import org.utbot.framework.plugin.api.JsClassId
-import org.utbot.framework.plugin.api.JsPrimitiveModel
-import org.utbot.framework.plugin.api.UtAssembleModel
-import org.utbot.framework.plugin.api.UtExecutableCallModel
-import org.utbot.framework.plugin.api.UtExecution
-import org.utbot.framework.plugin.api.UtExecutionSuccess
-import org.utbot.fuzzer.FuzzedMethodDescription
-import org.utbot.fuzzer.FuzzedValue
-import org.utbot.intellij.plugin.ui.JsDialogWindow
-import org.utbot.intellij.plugin.models.JsTestsModel
-import org.utbot.intellij.plugin.ui.utils.testModule
-import parser.JsFunctionAstVisitor
-import parser.JsFuzzerAstVisitor
-import parser.JsParserUtils
-import service.TernService
-import utils.constructClass
-import utils.toAny
-import java.nio.file.Paths
 import org.jetbrains.kotlin.idea.util.application.invokeLater
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
 import org.utbot.common.runBlockingWithCancellationPredicate
 import org.utbot.common.runIgnoringCancellationException
+import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
+import org.utbot.framework.plugin.api.EnvironmentModels
+import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMethodId
+import org.utbot.framework.plugin.api.JsPrimitiveModel
+import org.utbot.framework.plugin.api.UtAssembleModel
+import org.utbot.framework.plugin.api.UtExecutableCallModel
+import org.utbot.framework.plugin.api.UtExecution
+import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
+import org.utbot.fuzzer.FuzzedMethodDescription
+import org.utbot.fuzzer.FuzzedValue
+import org.utbot.intellij.plugin.models.JsTestsModel
+import org.utbot.intellij.plugin.ui.JsDialogWindow
+import org.utbot.intellij.plugin.ui.utils.testModule
+import parser.JsFunctionAstVisitor
+import parser.JsFuzzerAstVisitor
+import parser.JsParserUtils
 import service.CoverageService
 import service.ServiceContext
+import service.TernService
+import utils.constructClass
+import utils.toAny
 
 object JsDialogProcessor {
 
@@ -99,9 +104,10 @@ object JsDialogProcessor {
                 Thread.currentThread().contextClassLoader = Context::class.java.classLoader
                 runIgnoringCancellationException {
                     runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
+                        val text = File(containingFilePath).readText()
                         indicator.text = "Generate tests"
-                        val fileText = editor.document.text
-                        val regex = Regex("module.exports =")
+                        val fileText = text
+                        val regex = Regex("module.exports = \\{.*}")
                         // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
                         //  Also general trimming required, for example "export" keyword, etc.
                         val trimmedFileText = fileText.replace(regex, "")
@@ -111,6 +117,7 @@ object JsDialogProcessor {
                                 ?: throw IllegalStateException("Can't access project path."),
                             filePathToInference = containingFilePath,
                             trimmedFileText = trimmedFileText,
+                            fileText = fileText,
                         )
                         // TODO MINOR: do not create existing files
                         val ternService = TernService(context)
@@ -274,9 +281,9 @@ object JsDialogProcessor {
                     val swappedText = fileText.replace(it, "module.exports = {$exportLine}")
                     runWriteAction {
                         with(editor.document) {
+                            CodeGenerationController.unblockDocument(project, this)
                             setText(swappedText)
-                            docManager.commitDocument(this)
-                            docManager.doPostponedOperationsAndUnblockDocument(this)
+                            CodeGenerationController.unblockDocument(project, this)
                         }
                     }
                 }
@@ -288,9 +295,11 @@ object JsDialogProcessor {
                     append("\n$endComment")
                 }
                 runWriteAction {
-                    CodeGenerationController.unblockDocument(project, editor.document)
-                    editor.document.setText(fileText + line)
-                    CodeGenerationController.unblockDocument(project, editor.document)
+                    with(editor.document) {
+                        CodeGenerationController.unblockDocument(project, this)
+                        setText(fileText + line)
+                        CodeGenerationController.unblockDocument(project, this)
+                    }
                 }
             }
         }
