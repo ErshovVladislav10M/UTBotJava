@@ -13,13 +13,10 @@ fun Value.toAny(returnType: JsClassId): Pair<Any?, JsClassId> {
         isNumber -> {
             val str = toString()
             if (str.contains('.')) {
-                asDouble() to jsNumberClassId
+                (str.toDoubleOrNull() ?: str.toBigDecimal()) to jsNumberClassId
             } else {
-                (str.toByteOrNull() ?:
-                str.toShortOrNull() ?:
-                str.toIntOrNull() ?:
-                str.toLongOrNull() ?:
-                // TODO SEVERE: extend this
+                (str.toByteOrNull() ?: str.toShortOrNull() ?: str.toIntOrNull() ?: str.toLongOrNull()
+                ?: str.toBigIntegerOrNull() ?: str.toDoubleOrNull() ?:
                 throw IllegalStateException("Number too big")) to jsNumberClassId
             }
         }

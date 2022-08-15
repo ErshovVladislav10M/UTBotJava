@@ -24,6 +24,7 @@ import org.utbot.framework.codegen.model.tree.CgGetJavaClass
 import org.utbot.framework.codegen.model.tree.CgGetKotlinClass
 import org.utbot.framework.codegen.model.tree.CgGetLength
 import org.utbot.framework.codegen.model.tree.CgInnerBlock
+import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgMethod
 import org.utbot.framework.codegen.model.tree.CgMethodCall
 import org.utbot.framework.codegen.model.tree.CgMultipleArgsAnnotation
@@ -81,6 +82,24 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
             print("...")
         }
         print(element.name.escapeNamePossibleKeyword())
+    }
+
+    override fun visit(element: CgLiteral) {
+        val value = with(element.value) {
+            when (this) {
+                is Double -> toStringConstant()
+                is String -> "\"" + escapeCharacters() + "\""
+                else -> "$this"
+            }
+        }
+        print(value)
+    }
+
+    private fun Double.toStringConstant() = when {
+        isNaN() -> "Number.NaN"
+        this == Double.POSITIVE_INFINITY -> "Number.POSITIVE_INFINITY"
+        this == Double.NEGATIVE_INFINITY -> "Number.NEGATIVE_INFINITY"
+        else -> "$this"
     }
 
     override fun visit(element: CgStaticsRegion) {
@@ -228,10 +247,7 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         print(")")
     }
 
-    //TODO SEVERE
-    override fun renderRegularImport(regularImport: RegularImport) {
-        throw Exception("Not implemented yet")
-    }
+    override fun renderRegularImport(regularImport: RegularImport) {}
 
     override fun renderStaticImport(staticImport: StaticImport) {
         throw Exception("Not implemented yet")
