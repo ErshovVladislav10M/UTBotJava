@@ -123,7 +123,9 @@ object JsActionMethods {
     private fun generateMemberInfo(project: Project, methods: List<JSFunction>, jsClass: JSClass? = null): Set<JSMemberInfo> {
        jsClass?.let {
            val res = mutableListOf<JSMemberInfo>()
-           JSMemberInfo.extractClassMembers(it, res) { true }
+           JSMemberInfo.extractClassMembers(it, res) { member ->
+                   member is JSFunction
+           }
            return res.toSet()
        }
         val strClazz = buildClassStringFromMethods(methods)
