@@ -38,6 +38,7 @@ import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMethodId
+import org.utbot.framework.plugin.api.JsMultipleClassId
 import org.utbot.framework.plugin.api.JsPrimitiveModel
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtExecutableCallModel
@@ -258,11 +259,11 @@ object JsDialogProcessor {
     private fun collectExports(methodId: JsMethodId): List<String> {
         val res = mutableListOf<String>()
         methodId.parameters.forEach {
-            if (!it.isJsBasic) {
+            if (!(it.isJsBasic || it is JsMultipleClassId) ) {
                 res += it.name
             }
         }
-        if (!methodId.returnType.isJsBasic) res += methodId.returnType.name
+        if (!(methodId.returnType.isJsBasic || methodId.returnType is JsMultipleClassId)) res += methodId.returnType.name
         return res
     }
 
