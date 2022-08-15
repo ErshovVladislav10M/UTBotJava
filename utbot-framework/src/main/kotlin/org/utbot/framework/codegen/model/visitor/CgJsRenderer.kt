@@ -228,10 +228,7 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         print(")")
     }
 
-    //TODO SEVERE
-    override fun renderRegularImport(regularImport: RegularImport) {
-        throw Exception("Not implemented yet")
-    }
+    override fun renderRegularImport(regularImport: RegularImport) {}
 
     override fun renderStaticImport(staticImport: StaticImport) {
         throw Exception("Not implemented yet")
