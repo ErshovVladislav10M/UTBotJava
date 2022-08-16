@@ -1,7 +1,6 @@
 package org.utbot.intellij.plugin.models
 
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
-import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFile
@@ -13,7 +12,7 @@ class JsTestsModel(
     srcModule: Module,
     testModule: Module,
     val fileMethods: Set<JSMemberInfo>,
-    var selectedMethods: Set<JSMemberInfo>?,
+    var selectedMethods: Set<JSMemberInfo>,
     val containingPsiFile: PsiFile? = null
 ) : BaseTestsModel(
     project,

@@ -23,8 +23,6 @@ import com.oracle.js.parser.ir.FunctionNode
 import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer.jsFuzzing
 import fuzzer.providers.JsObjectModelProvider
-import java.io.File
-import java.net.URLClassLoader
 import java.nio.file.Paths
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
@@ -35,6 +33,7 @@ import org.utbot.common.runBlockingWithCancellationPredicate
 import org.utbot.common.runIgnoringCancellationException
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
+import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMethodId
 import org.utbot.framework.plugin.api.JsMultipleClassId
@@ -44,10 +43,8 @@ import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.framework.plugin.api.UtStatementModel
-import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
-import org.utbot.framework.plugin.api.util.withUtContext
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
 import org.utbot.intellij.plugin.models.JsTestsModel
@@ -105,7 +102,7 @@ object JsDialogProcessor {
                 srcModule,
                 testModel,
                 fileMethods,
-                if (focusedMethod != null) setOf(focusedMethod) else null,
+                if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
                 containingPsiFile = containingPsiFile
             ).apply {
                 containingFilePath = filePath
@@ -137,26 +134,35 @@ object JsDialogProcessor {
                         val ternService = TernService(context)
                         ternService.run()
                         val exports = mutableSetOf<String>()
-                        model.selectedMethods?.forEach { jsMemberInfo ->
-                            // TODO SEVERE: remove psi
-                            var parentPsi = runReadAction { PsiTreeUtil.getParentOfType(jsMemberInfo.member, ES6Class::class.java) }
-                            // "toplevelHack" is from JsActionMethods
-                            val psiName = runReadAction { parentPsi?.name }
-                            if (psiName == null || psiName == "toplevelHack") {
-                                parentPsi = null
-                            }
+                        val paramNames = mutableMapOf<ExecutableId, List<String>>()
+                        val testSets = mutableListOf<CgMethodTestSet>()
+                        val anyMember = runReadAction { model.selectedMethods.first().member }
+                        var parentPsi = runReadAction { PsiTreeUtil.getParentOfType(anyMember, ES6Class::class.java) }
+                        val psiName = runReadAction { parentPsi?.name }
+                        // "toplevelHack" is from JsActionMethods
+                        if (psiName == null || psiName == "toplevelHack") {
+                            parentPsi = null
+                        }
+                        val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(
+                            psiName!!,
+                            trimmedFileText
+                        ) else null
+                        val classId = parentPsi?.let {
+                            JsClassId(psiName!!).constructClass(ternService, classNode)
+                        } ?: JsClassId("undefined").constructClass(
+                            ternService,
+                            functions = extractToplevelFunctions(
+                                runReadAction { model.fileMethods.toList().map { it.member.name!! } },
+                                trimmedFileText
+                            )
+                        )
+
+                        model.selectedMethods.forEach { jsMemberInfo ->
                             val funcNode = getFunctionNode(
                                 runReadAction { jsMemberInfo.member.name!! },
                                 psiName,
                                 trimmedFileText
                             )
-                            val classNode = if (parentPsi != null) JsParserUtils.searchForClassDecl(
-                                psiName!!,
-                                trimmedFileText
-                            ) else null
-                            val classId = parentPsi?.let {
-                                JsClassId(psiName!!).constructClass(ternService, classNode)
-                            } ?: JsClassId("undefined").constructClass(ternService, functions = listOf(funcNode))
                             val execId = classId.allMethods.find {
                                 it.name == funcNode.name.toString()
                             } ?: throw IllegalStateException()
@@ -248,33 +254,29 @@ object JsDialogProcessor {
                                 execId,
                                 testsForGenerator
                             )
-                            val codeGen = JsCodeGenerator(
-                                classId,
-                                mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
-                            )
-                            val generatedCode = codeGen.generateAsStringWithTestReport(listOf(testSet)).generatedCode
-                            val testFileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
-//                            val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$testFileName")
-//                            testFile.createNewFile()
-                            withUtContext(UtContext(URLClassLoader(emptyArray()))) {
-                                invokeLater {
-                                    runWriteAction {
-                                        val testPsiFile = PsiFileFactory.getInstance(project)
-                                            .createFileFromText(testFileName, JsActionMethods.jsLanguage, generatedCode)
-                                        val baseTestDirectory = model.containingPsiFile?.containingDirectory
-                                            ?: return@runWriteAction
-                                        val testFileEditor =
-                                            CodeInsightUtil.positionCursor(project, testPsiFile, testPsiFile)
-                                        CodeGenerationController.unblockDocument(project, testFileEditor.document)
-                                        testFileEditor.document.setText(generatedCode)
-                                        CodeGenerationController.unblockDocument(project, testFileEditor.document)
-                                        try {
-                                            baseTestDirectory.add(testPsiFile)
-                                        } catch (_: Exception) {}
-                                    }
+                            testSets += testSet
+                            paramNames[execId] = funcNode.parameters.map { it.name.toString() }
+                        }
+                        val codeGen = JsCodeGenerator(
+                            classId,
+                            paramNames,
+                        )
+                        val generatedCode = codeGen.generateAsStringWithTestReport(testSets).generatedCode
+                        val testFileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
+                            invokeLater {
+                                runWriteAction {
+                                    val baseTestDirectory = model.containingPsiFile?.containingDirectory
+                                        ?: return@runWriteAction
+                                    val testPsiFile = baseTestDirectory.findFile(testFileName) ?: PsiFileFactory.getInstance(project)
+                                        .createFileFromText(testFileName, JsActionMethods.jsLanguage, generatedCode)
+                                    val testFileEditor =
+                                        CodeInsightUtil.positionCursor(project, testPsiFile, testPsiFile)
+                                    CodeGenerationController.unblockDocument(project, testFileEditor.document)
+                                    testFileEditor.document.setText(generatedCode)
+                                    CodeGenerationController.unblockDocument(project, testFileEditor.document)
+                                    baseTestDirectory.findFile(testFileName) ?: baseTestDirectory.add(testPsiFile)
                                 }
                             }
-                        }
                         AppExecutorUtil.getAppExecutorService().submit {
                             invokeLater {
                                 manageExports(exports.toList(), editor, project)
@@ -414,4 +416,14 @@ object JsDialogProcessor {
         }
         return resultList
     }
+
+    private fun extractToplevelFunctions(funcNames: List<String>, fileText: String): List<FunctionNode> =
+        funcNames.map {
+            getFunctionNode(
+                it,
+                null,
+                fileText
+            )
+        }
+
 }

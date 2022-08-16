@@ -74,7 +74,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
     override fun doOKAction() {
         val selected = functionsTable.selectedMemberInfos.toSet()
-        model.selectedMethods = if (selected.any()) selected else null
+        model.selectedMethods = if (selected.any()) selected else emptySet()
         model.testFramework = testFrameworks.item
         configureTestFrameworkIfRequired()
         super.doOKAction()
@@ -82,9 +82,9 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
     private fun updateMembersTable() {
         if (items.isEmpty()) isOKActionEnabled = false
-        val focusedNames = model.selectedMethods?.map { it.member.name }
+        val focusedNames = model.selectedMethods.map { it.member.name }
         val selectedMethods = items.filter {
-            focusedNames?.contains(it.member.name) ?: false
+            focusedNames.contains(it.member.name)
         }
         if (selectedMethods.isEmpty()) {
             checkMembers(items)
