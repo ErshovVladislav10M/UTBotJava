@@ -6,7 +6,6 @@ import org.utbot.go.api.GoUtFile
 import org.utbot.go.api.GoUtFunction
 import org.utbot.go.api.GoUtFunctionParameter
 import org.utbot.go.util.executeCommandByNewProcessOrFail
-import org.utbot.go.util.findGoExecutableAbsolutePath
 import org.utbot.go.util.parseFromJsonOrFail
 import org.utbot.go.util.writeJsonToFileOrFail
 
@@ -24,7 +23,10 @@ object GoSourceCodeAnalyzer {
      *
      * Returns GoSourceFileAnalysisResult-s grouped by their source files.
      */
-    fun analyzeGoSourceFilesForFunctions(targetFunctionsNamesBySourceFiles: Map<String, List<String>>): Map<GoUtFile, GoSourceFileAnalysisResult> {
+    fun analyzeGoSourceFilesForFunctions(
+        targetFunctionsNamesBySourceFiles: Map<String, List<String>>,
+        goExecutableAbsolutePath: String
+    ): Map<GoUtFile, GoSourceFileAnalysisResult> {
         val analysisTargets = AnalysisTargets(
             targetFunctionsNamesBySourceFiles.map { (absoluteFilePath, targetFunctionsNames) ->
                 AnalysisTarget(absoluteFilePath, targetFunctionsNames)
@@ -38,7 +40,7 @@ object GoSourceCodeAnalyzer {
         val analysisResultsFile = goCodeAnalyzerSourceDir.resolve(analysisResultsFileName)
 
         val goCodeAnalyzerRunCommand = listOf(
-            findGoExecutableAbsolutePath(),
+            goExecutableAbsolutePath,
             "run"
         ) + getGoCodeAnalyzerSourceFilesNames() + listOf(
             "-targets",

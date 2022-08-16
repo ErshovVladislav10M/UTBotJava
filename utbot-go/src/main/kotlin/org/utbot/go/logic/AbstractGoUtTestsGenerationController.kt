@@ -6,19 +6,25 @@ import org.utbot.go.api.GoUtFuzzedFunctionTestCase
 import org.utbot.go.gocodeanalyzer.GoSourceCodeAnalyzer
 import org.utbot.go.simplecodegeneration.GoTestCasesCodeGenerator
 
-abstract class AbstractGoUtTestsGenerationController {
+abstract class AbstractGoUtTestsGenerationController(private val goExecutableAbsolutePath: String) {
 
     fun generateTests(selectedFunctionsNamesBySourceFiles: Map<String, List<String>>) {
         if (!onSourceCodeAnalysisStart(selectedFunctionsNamesBySourceFiles)) return
 
-        val analysisResults = GoSourceCodeAnalyzer.analyzeGoSourceFilesForFunctions(selectedFunctionsNamesBySourceFiles)
+        val analysisResults = GoSourceCodeAnalyzer.analyzeGoSourceFilesForFunctions(
+            selectedFunctionsNamesBySourceFiles,
+            goExecutableAbsolutePath
+        )
         if (!onSourceCodeAnalysisFinished(analysisResults)) return
 
         val testCasesBySourceFiles = analysisResults.mapValues { (sourceFile, analysisResult) ->
             val functions = analysisResult.functions
             if (!onTestCasesGenerationForGoSourceFileFunctionsStart(sourceFile, functions)) return
-            GoTestCasesGenerator.generateTestCasesForGoSourceFileFunctions(sourceFile, functions)
-                .also { if (!onTestCasesGenerationForGoSourceFileFunctionsFinished(sourceFile, it)) return }
+            GoTestCasesGenerator.generateTestCasesForGoSourceFileFunctions(
+                sourceFile,
+                functions,
+                goExecutableAbsolutePath
+            ).also { if (!onTestCasesGenerationForGoSourceFileFunctionsFinished(sourceFile, it)) return }
         }
 
         testCasesBySourceFiles.forEach { (sourceFile, testCases) ->

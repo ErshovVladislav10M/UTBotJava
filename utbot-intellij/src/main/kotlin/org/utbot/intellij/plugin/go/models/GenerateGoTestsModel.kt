@@ -8,7 +8,8 @@ import com.intellij.openapi.project.Project
  *
  * targetFunctions: all possible functions to generate tests for;
  * focusedTargetFunctions: such target functions that user is focused on while plugin execution;
- * selectedFunctions: finally selected functions to generate tests for.
+ * selectedFunctions: finally selected functions to generate tests for;
+ * goExecutableAbsolutePath: self-explanatory.
  */
 data class GenerateGoTestsModel(
     val project: Project,
@@ -16,4 +17,5 @@ data class GenerateGoTestsModel(
     val focusedTargetFunctions: Set<GoFunctionOrMethodDeclaration>,
 ) {
     lateinit var selectedFunctions: Set<GoFunctionOrMethodDeclaration>
+    lateinit var goExecutableAbsolutePath: String
 }

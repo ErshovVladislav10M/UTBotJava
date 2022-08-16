@@ -3,7 +3,6 @@ package org.utbot.go.executor
 import org.utbot.go.api.*
 import org.utbot.go.api.util.*
 import org.utbot.go.util.executeCommandByNewProcessOrFail
-import org.utbot.go.util.findGoExecutableAbsolutePath
 import org.utbot.go.util.parseFromJsonOrFail
 import java.io.File
 
@@ -11,7 +10,8 @@ object GoFuzzedFunctionsExecutor {
 
     fun executeGoSourceFileFuzzedFunctions(
         sourceFile: GoUtFile,
-        fuzzedFunctions: List<GoUtFuzzedFunction>
+        fuzzedFunctions: List<GoUtFuzzedFunction>,
+        goExecutableAbsolutePath: String
     ): Map<GoUtFuzzedFunction, GoUtExecutionResult> {
         val fileToExecuteName = createFileToExecuteName(sourceFile)
         val rawExecutionResultsFileName = createRawExecutionResultsFileName(sourceFile)
@@ -22,7 +22,7 @@ object GoFuzzedFunctionsExecutor {
 
         val executorTestFunctionName = createExecutorTestFunctionName()
         val runGeneratedGoExecutorTestCommand = listOf(
-            findGoExecutableAbsolutePath(),
+            goExecutableAbsolutePath,
             "test",
             "-run",
             executorTestFunctionName

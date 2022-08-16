@@ -2,12 +2,6 @@ package org.utbot.go.util
 
 import java.io.File
 import java.io.InputStreamReader
-import java.nio.file.Paths
-
-// TODO: find in general by code
-fun findGoExecutableAbsolutePath(): String {
-    return Paths.get("/home/gleb/go/go1.19rc1", "bin", "go").toString()
-}
 
 fun executeCommandByNewProcessOrFail(command: List<String>, workingDirectory: File, executionTargetName: String) {
     val executedProcess = runCatching {

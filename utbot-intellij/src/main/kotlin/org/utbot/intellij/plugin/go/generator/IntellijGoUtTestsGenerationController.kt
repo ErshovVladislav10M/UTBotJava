@@ -14,7 +14,7 @@ import org.utbot.intellij.plugin.ui.utils.showWarningDialogLater
 class IntellijGoUtTestsGenerationController(
     private val model: GenerateGoTestsModel,
     private val indicator: ProgressIndicator
-) : AbstractGoUtTestsGenerationController() {
+) : AbstractGoUtTestsGenerationController(model.goExecutableAbsolutePath) {
 
     private object ProgressIndicatorConstants {
         const val START_FRACTION = 0.05 // is needed to prevent infinite indicator that appears for 0.0

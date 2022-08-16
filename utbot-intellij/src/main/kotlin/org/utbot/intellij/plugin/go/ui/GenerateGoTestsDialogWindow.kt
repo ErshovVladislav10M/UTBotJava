@@ -2,6 +2,7 @@ package org.utbot.intellij.plugin.go.ui
 
 import com.goide.psi.GoFunctionOrMethodDeclaration
 import com.goide.refactor.ui.GoDeclarationInfo
+import com.goide.sdk.combobox.GoSdkChooserCombo
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
@@ -20,6 +21,8 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
         this.preferredScrollableViewportSize = JBUI.size(-1, height)
     }
 
+    private val projectGoSdkField = GoSdkChooserCombo()
+
     private lateinit var panel: DialogPanel
 
     init {
@@ -31,6 +34,9 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
     override fun createCenterPanel(): JComponent {
         panel = panel {
             row("Test source root: near to source files") {}
+            row("Project Go SDK:") {
+                component(projectGoSdkField)
+            }
             row("Generate test methods for:") {}
             row {
                 scrollPane(targetFunctionsTable)
@@ -42,6 +48,7 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
 
     override fun doOKAction() {
         model.selectedFunctions = targetFunctionsTable.selectedMemberInfos.fromInfos()
+        model.goExecutableAbsolutePath = projectGoSdkField.sdk.goExecutablePath!!
         super.doOKAction()
     }
 
@@ -56,10 +63,6 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
             checkInfos(selectedInfos)
         }
         targetFunctionsTable.setMemberInfos(targetInfos)
-
-        if (targetFunctionsTable.selectedMemberInfos.isEmpty()) {
-            isOKActionEnabled = false
-        }
     }
 
     private fun checkInfos(infos: Collection<GoDeclarationInfo>) {
@@ -72,15 +75,21 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
     private fun Collection<GoDeclarationInfo>.fromInfos(): Set<GoFunctionOrMethodDeclaration> =
         this.map { it.declaration as GoFunctionOrMethodDeclaration }.toSet()
 
-    @Suppress("DuplicatedCode") // Is cloned from GenerateTestsDialogWindow.
+    @Suppress("DuplicatedCode") // This method is highly inspired by GenerateTestsDialogWindow.doValidate().
     override fun doValidate(): ValidationInfo? {
+        projectGoSdkField.sdk.goExecutablePath
+            ?: return ValidationInfo(
+                "Go SDK is not configured",
+                projectGoSdkField.childComponent
+            )
+
         targetFunctionsTable.tableHeader?.background = UIUtil.getTableBackground()
         targetFunctionsTable.background = UIUtil.getTableBackground()
         if (targetFunctionsTable.selectedMemberInfos.isEmpty()) {
             targetFunctionsTable.tableHeader?.background = JBUI.CurrentTheme.Validator.errorBackgroundColor()
             targetFunctionsTable.background = JBUI.CurrentTheme.Validator.errorBackgroundColor()
             return ValidationInfo(
-                "Tick any methods to generate tests for", targetFunctionsTable
+                "Tick any methods to generate tests for", targetFunctionsTable.componentPopupMenu
             )
         }
         return null
