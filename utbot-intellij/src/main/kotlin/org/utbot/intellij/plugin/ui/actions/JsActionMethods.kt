@@ -31,18 +31,20 @@ object JsActionMethods {
         val module: Module,
         val containingFilePath: String,
         val editor: Editor,
+        val containingPsiFile: PsiFile
     )
 
     fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val (methods, focusedMethod, module, containingFilePath, editor) = getPsiTargets(e) ?: return
+        val (methods, focusedMethod, module, containingFilePath, editor, containingPsiFile) = getPsiTargets(e) ?: return
         JsDialogProcessor.createDialogAndGenerateTests(
             project,
             module,
             methods,
             focusedMethod,
             containingFilePath,
-            editor
+            editor,
+            containingPsiFile,
         )
     }
 
@@ -69,7 +71,8 @@ object JsActionMethods {
                 focusedMethodMI,
                 module,
                 virtualFile,
-                editor
+                editor,
+                file
             )
         }
         val memberInfos = generateMemberInfo(e.project!!, file.statements.filterIsInstance<JSFunction>())
@@ -81,7 +84,8 @@ object JsActionMethods {
             focusedMethodMI,
             module,
             virtualFile,
-            editor
+            editor,
+            file
         )
     }
 

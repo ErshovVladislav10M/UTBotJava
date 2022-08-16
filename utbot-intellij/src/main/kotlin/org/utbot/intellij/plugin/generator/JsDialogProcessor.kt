@@ -2,6 +2,7 @@ package org.utbot.intellij.plugin.generator
 
 import api.JsUtModelConstructor
 import codegen.JsCodeGenerator
+import com.intellij.codeInsight.CodeInsightUtil
 import com.intellij.lang.ecmascript6.psi.ES6Class
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
 import com.intellij.openapi.editor.Editor
@@ -10,8 +11,8 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.oracle.js.parser.ErrorManager
@@ -23,6 +24,7 @@ import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer.jsFuzzing
 import fuzzer.providers.JsObjectModelProvider
 import java.io.File
+import java.net.URLClassLoader
 import java.nio.file.Paths
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
@@ -42,12 +44,15 @@ import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.framework.plugin.api.UtStatementModel
+import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
+import org.utbot.framework.plugin.api.util.withUtContext
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.JsDialogWindow
+import org.utbot.intellij.plugin.ui.actions.JsActionMethods
 import org.utbot.intellij.plugin.ui.utils.testModule
 import parser.JsFunctionAstVisitor
 import parser.JsFuzzerAstVisitor
@@ -66,11 +71,16 @@ object JsDialogProcessor {
         fileMethods: Set<JSMemberInfo>,
         focusedMethod: JSMemberInfo?,
         containingFilePath: String,
-        editor: Editor
+        editor: Editor,
+        containingPsiFile: PsiFile
     ) {
-        val dialogProcessor = createDialog(project, srcModule, fileMethods, focusedMethod, containingFilePath)
+        val dialogProcessor = createDialog(project, srcModule, fileMethods, focusedMethod, containingFilePath, containingPsiFile)
         if (!dialogProcessor.showAndGet()) return
 
+
+        /*
+            Since Tern.js accesses containing file, sync with file system required before test generation.
+         */
         runWriteAction {
             with(FileDocumentManager.getInstance()) {
                 saveDocument(editor.document)
@@ -85,6 +95,7 @@ object JsDialogProcessor {
         fileMethods: Set<JSMemberInfo>,
         focusedMethod: JSMemberInfo?,
         filePath: String,
+        containingPsiFile: PsiFile
     ): JsDialogWindow {
         val testModel = srcModule.testModule(project)
 
@@ -95,6 +106,7 @@ object JsDialogProcessor {
                 testModel,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else null,
+                containingPsiFile = containingPsiFile
             ).apply {
                 containingFilePath = filePath
             }
@@ -241,10 +253,27 @@ object JsDialogProcessor {
                                 mutableMapOf(execId to funcNode.parameters.map { it.name.toString() }),
                             )
                             val generatedCode = codeGen.generateAsStringWithTestReport(listOf(testSet)).generatedCode
-                            val fileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
-                            val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$fileName")
-                            testFile.writeText(generatedCode)
-                            testFile.createNewFile()
+                            val testFileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
+//                            val testFile = File("${containingFilePath.replaceAfterLast("/", "")}$testFileName")
+//                            testFile.createNewFile()
+                            withUtContext(UtContext(URLClassLoader(emptyArray()))) {
+                                invokeLater {
+                                    runWriteAction {
+                                        val testPsiFile = PsiFileFactory.getInstance(project)
+                                            .createFileFromText(testFileName, JsActionMethods.jsLanguage, generatedCode)
+                                        val baseTestDirectory = model.containingPsiFile?.containingDirectory
+                                            ?: return@runWriteAction
+                                        val testFileEditor =
+                                            CodeInsightUtil.positionCursor(project, testPsiFile, testPsiFile)
+                                        CodeGenerationController.unblockDocument(project, testFileEditor.document)
+                                        testFileEditor.document.setText(generatedCode)
+                                        CodeGenerationController.unblockDocument(project, testFileEditor.document)
+                                        try {
+                                            baseTestDirectory.add(testPsiFile)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            }
                         }
                         AppExecutorUtil.getAppExecutorService().submit {
                             invokeLater {

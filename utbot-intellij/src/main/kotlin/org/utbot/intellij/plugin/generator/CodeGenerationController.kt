@@ -223,7 +223,7 @@ object CodeGenerationController {
                                 when (model.codegenLanguage) {
                                     CodegenLanguage.JAVA -> it !is KtUltraLightClass
                                     CodegenLanguage.KOTLIN -> it is KtUltraLightClass
-                                    CodegenLanguage.JS -> TODO()
+                                    CodegenLanguage.JS -> throw UnsupportedOperationException()
                                 }
                             }
                     })
@@ -239,7 +239,7 @@ object CodeGenerationController {
             when (model.codegenLanguage) {
                 CodegenLanguage.JAVA -> JavaTemplateUtil.INTERNAL_CLASS_TEMPLATE_NAME
                 CodegenLanguage.KOTLIN -> "Kotlin Class"
-                CodegenLanguage.JS -> TODO()
+                CodegenLanguage.JS -> throw UnsupportedOperationException()
             }
         )
         runWriteAction { testDirectory.findFile(testClassName + model.codegenLanguage.extension)?.delete() }
@@ -349,6 +349,7 @@ object CodeGenerationController {
                 JavaCodeStyleManager.getInstance(project).shortenClassReferences(reformatRange)
             }
             CodegenLanguage.KOTLIN -> ShortenReferences.DEFAULT.process((testClass as KtUltraLightClass).kotlinOrigin.containingKtFile)
+            else -> throw UnsupportedOperationException()
         }
     }
 
