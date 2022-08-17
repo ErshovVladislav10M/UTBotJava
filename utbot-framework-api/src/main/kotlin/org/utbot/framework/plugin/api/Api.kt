@@ -642,10 +642,18 @@ class JsEmptyClassId(): JsClassId("empty")
 class JsMethodId(
     override var classId: JsClassId,
     override val name: String,
-    override val returnType: JsClassId,
-    override val parameters: List<JsClassId>,
+    private val returnTypeNotLazy: JsClassId,
+    private val parametersNotLazy: List<JsClassId>,
     private val staticModifier: Boolean = false,
-) : MethodId(classId, name, returnType, parameters) {
+    private val lazyReturnType: Lazy<JsClassId>? = null,
+    private val lazyParameters: Lazy<List<JsClassId>>? = null
+) : MethodId(classId, name, returnTypeNotLazy, parametersNotLazy) {
+
+    override val parameters: List<JsClassId>
+        get() = lazyParameters?.value ?: parametersNotLazy
+
+    override val returnType: JsClassId
+        get() = lazyReturnType?.value ?: returnTypeNotLazy
 
     override val isPrivate: Boolean
         get() = throw UnsupportedOperationException("JavaScript does not support private methods.")

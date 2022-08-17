@@ -5,6 +5,7 @@ import com.oracle.js.parser.ir.FunctionNode
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsConstructorId
 import org.utbot.framework.plugin.api.JsMethodId
+import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 import service.TernService
 
 fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = null, functions: List<FunctionNode> = emptyList()): JsClassId {
@@ -14,9 +15,11 @@ fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = n
         JsMethodId(
             JsClassId(name),
             funcNode.name.toString(),
-            types.returnType,
-            types.parameters,
+            jsUndefinedClassId,
+            emptyList(),
             it.isStatic,
+            lazyReturnType = types.returnType,
+            lazyParameters = types.parameters,
         )
     }?.asSequence() ?:
         // used for toplevel functions
@@ -25,9 +28,11 @@ fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = n
             JsMethodId(
                 JsClassId(name),
                 funcNode.name.toString(),
-                types.returnType,
-                types.parameters,
-                true
+                jsUndefinedClassId,
+                emptyList(),
+                true,
+                lazyReturnType = types.returnType,
+                lazyParameters = types.parameters,
             )
         }.asSequence()
 

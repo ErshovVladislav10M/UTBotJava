@@ -23,9 +23,8 @@ import com.oracle.js.parser.ir.FunctionNode
 import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer.jsFuzzing
 import fuzzer.providers.JsObjectModelProvider
-import java.nio.file.Paths
+import java.io.File
 import org.graalvm.polyglot.Context
-import org.graalvm.polyglot.Value
 import org.jetbrains.kotlin.idea.util.application.invokeLater
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
@@ -44,6 +43,7 @@ import org.utbot.framework.plugin.api.UtExecution
 import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.util.isJsBasic
+import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 import org.utbot.framework.plugin.api.util.voidClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
@@ -57,6 +57,7 @@ import parser.JsParserUtils
 import service.CoverageService
 import service.ServiceContext
 import service.TernService
+import utils.JsCmdExec
 import utils.constructClass
 import utils.toAny
 
@@ -170,9 +171,10 @@ object JsDialogProcessor {
                             val obligatoryExport = (classNode?.ident?.name ?: funcNode.ident.name).toString()
                             val collectedExports = collectExports(execId)
                             exports += (collectedExports + obligatoryExport)
-                            funcNode.body.accept(JsFuzzerAstVisitor)
+                            val fuzzerVisitor = JsFuzzerAstVisitor()
+                            funcNode.body.accept(fuzzerVisitor)
                             val methodUnderTestDescription =
-                                FuzzedMethodDescription(execId, JsFuzzerAstVisitor.fuzzedConcreteValues).apply {
+                                FuzzedMethodDescription(execId, fuzzerVisitor.fuzzedConcreteValues).apply {
                                     compilableName = funcNode.name.toString()
                                     val names = funcNode.parameters.map { it.name.toString() }
                                     parameterNameMap = { index -> names.getOrNull(index) }
@@ -195,15 +197,18 @@ object JsDialogProcessor {
                                 coveredBranchesArray[it] = coverageService.getCoveredLines()
                             }
                             val testsForGenerator = mutableListOf<UtExecution>()
+                            val resultRegex = Regex("Utbot result: (.*)")
                             analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
                                 val param = fuzzedValues[paramIndex]
                                 val utConstructor = JsUtModelConstructor()
                                 val scriptText =
                                     makeStringForRunJs(param, execId, classNode?.ident?.name, trimmedFileText)
-                                val (returnValue, valueClassId) = runJs(
+                                val returnText = runJs(
                                     scriptText,
-                                    containingFilePath.replaceAfterLast("/", "")
-                                ).toAny(execId.returnType)
+                                    containingFilePath.replaceAfterLast("/", ""),
+                                )
+                                val unparsedValue = resultRegex.findAll(returnText).last().groups[1]?.value ?: throw IllegalStateException()
+                                val (returnValue, valueClassId) = unparsedValue.toAny(execId.returnType)
                                 val result = utConstructor.construct(returnValue, valueClassId)
                                 val thisInstance = when {
                                     execId.isStatic -> null
@@ -232,7 +237,7 @@ object JsDialogProcessor {
                                                 "thisInstance",
                                                 voidClassId,
                                                 listOf(classId),
-                                                JsFuzzerAstVisitor.fuzzedConcreteValues
+                                                fuzzerVisitor.fuzzedConcreteValues
                                             )
                                         ).take(10).toList()
                                             .shuffled().map { it.value.model }.first()
@@ -337,23 +342,30 @@ object JsDialogProcessor {
         }
     }
 
-    private fun runJs(scriptText: String, workDir: String): Value {
-        val context = Context.newBuilder("js")
-            .allowIO(true)
-            .currentWorkingDirectory(Paths.get(workDir))
-            .option("engine.WarnInterpreterOnly", "false")
-            .build()
-        val source = org.graalvm.polyglot.Source.newBuilder("js", scriptText, "script")
-            .mimeType("application/javascript+module").build()
-        return context.eval(source)
+    private fun runJs(scriptText: String, workDir: String): String {
+        val tempFile = File("$workDir/tempScriptUtbotJs.js")
+        tempFile.writeText(scriptText)
+        tempFile.createNewFile()
+        val reader = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)
+        tempFile.delete()
+        return reader.readText()
     }
 
     private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?, fileText: String): String {
         val callString = makeCallFunctionString(fuzzedValue, method, containingClass)
+        val prefix = "Utbot result:"
+        val temp = "console.log(`$prefix \"\${res}\"`)"
         val res = buildString {
             append(fileText)
             append("\n")
-            append(callString)
+            append("""
+                {
+                    let prefix = "$prefix"
+                    let res = $callString
+                    if (typeof res == "string") $temp
+                    else console.log(prefix, res)
+                }
+            """.trimIndent())
         }
         return res
     }

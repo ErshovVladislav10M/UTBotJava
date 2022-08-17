@@ -10,12 +10,14 @@ import org.utbot.framework.plugin.api.util.*
 import org.utbot.fuzzer.FuzzedConcreteValue
 import org.utbot.fuzzer.FuzzedOp
 
-object JsFuzzerAstVisitor : NodeVisitor<LexicalContext>(LexicalContext()) {
+class JsFuzzerAstVisitor() : NodeVisitor<LexicalContext>(LexicalContext()) {
     private var lastFuzzedOpGlobal = FuzzedOp.NONE
+
     val fuzzedConcreteValues = mutableSetOf<FuzzedConcreteValue>()
 
     override fun enterBinaryNode(binaryNode: BinaryNode?): Boolean {
         binaryNode?.let { binNode ->
+
             val compOp = """>=|<=|>|<|==|!=""".toRegex()
             val curOp = compOp.find(binNode.toString())?.value
             val currentFuzzedOp = FuzzedOp.values().find { curOp == it.sign } ?: FuzzedOp.NONE

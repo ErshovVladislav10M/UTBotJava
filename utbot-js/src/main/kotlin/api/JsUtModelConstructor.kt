@@ -52,7 +52,7 @@ class JsUtModelConstructor: UtModelConstructorInterface {
                     instantiationChain += UtExecutableCallModel(null, constructor, values, this)
                 }
             }
-            else -> throw Exception("Not implemented yet")
+            else -> JsUndefinedModel(classId)
         }
     }
 }

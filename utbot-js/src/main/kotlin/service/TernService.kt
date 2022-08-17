@@ -160,8 +160,8 @@ test("${context.filePathToInference}")
         val methodJson = scope.getJSONObject(methodName)
         val typesString = methodJson.getString("!type")
             .filterNot { setOf(' ', '+', '!').contains(it) }
-        val parametersList = extractParameters(typesString)
-        val returnType = extractReturnType(typesString)
+        val parametersList = lazy { extractParameters(typesString) }
+        val returnType = lazy { extractReturnType(typesString) }
 
         return MethodTypes(parametersList, returnType)
     }
