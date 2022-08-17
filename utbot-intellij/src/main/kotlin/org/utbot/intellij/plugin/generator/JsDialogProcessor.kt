@@ -118,10 +118,9 @@ object JsDialogProcessor {
                     runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
                         val fileText = editor.document.text
                         indicator.text = "Generate tests"
-                        val regex = Regex("module.exports = \\{.*}")
                         // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
                         //  Also general trimming required, for example "export" keyword, etc.
-                        val trimmedFileText = fileText.replace(regex, "")
+                        val trimmedFileText = trimText(fileText)
                         val context = ServiceContext(
                             utbotDir = "utbotJs",
                             projectPath = model.project.basePath
@@ -284,6 +283,10 @@ object JsDialogProcessor {
                         }
                     }
                 }
+            }
+            private fun trimText(fileText: String): String {
+                val regex = Regex("module.exports = \\{.*}|export")
+                return fileText.replace(regex, "")
             }
         }).queue()
     }
