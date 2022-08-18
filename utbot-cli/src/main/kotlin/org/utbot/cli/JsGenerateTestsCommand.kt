@@ -66,7 +66,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generateJS", help = "Generat
             }
 
         } catch (t: Throwable) {
-            logger.error { "An error has occurred while generating test for file $sourceCodeFile : $t" }
+            logger.error { "An error has occurred while generating tests for file $sourceCodeFile : $t" }
             throw t
         } finally {
             val duration = ChronoUnit.MILLIS.between(started, LocalDateTime.now())

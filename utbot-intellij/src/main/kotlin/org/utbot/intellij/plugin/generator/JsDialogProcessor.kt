@@ -133,7 +133,12 @@ object JsDialogProcessor {
             fileText.contains(startComment) && !fileText.contains("module.exports = {$exportLine}") -> {
                 val regex = Regex("\n$startComment\n(.*)\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {
-                    val swappedText = fileText.replace(it, "module.exports = {$exportLine}")
+                    val exportsRegex = Regex("\\{(.*)}")
+                    val existingExportsLine = exportsRegex.find(it)!!.groupValues[1]
+                    val existingExportsSet = existingExportsLine.split(',').toMutableSet()
+                    existingExportsSet.addAll(exports)
+                    val resLine = existingExportsSet.joinToString()
+                    val swappedText = fileText.replace(it, "module.exports = {$resLine}")
                     runWriteAction {
                         with(editor.document) {
                             CodeGenerationController.unblockDocument(project, this)

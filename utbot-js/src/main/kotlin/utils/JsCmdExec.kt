@@ -11,14 +11,13 @@ object JsCmdExec {
     private val cmdDelim = if (System.getProperty("os.name").toLowerCase().contains("windows"))
         "/c" else "-c"
 
-    fun runCommand(cmd: String, dir: String? = null, shouldWait: Boolean = false): BufferedReader {
+    fun runCommand(cmd: String, dir: String? = null, shouldWait: Boolean = false): Pair<BufferedReader, BufferedReader> {
         val builder = ProcessBuilder(cmdPrefix, cmdDelim, cmd)
         dir?.let {
             builder.directory(File(it))
         }
         val process = builder.start()
         if (shouldWait) process.waitFor()
-        val error = process.errorStream.bufferedReader().readText()
-        return process.inputStream.bufferedReader()
+        return process.inputStream.bufferedReader() to process.errorStream.bufferedReader()
     }
 }

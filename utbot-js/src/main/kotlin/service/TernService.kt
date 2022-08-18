@@ -104,7 +104,7 @@ test("${context.filePathToInference}")
 
     private fun runTypeInferencer() {
         with(context) {
-            val reader = JsCmdExec.runCommand(
+            val (reader, _) = JsCmdExec.runCommand(
                 "node ${projectPath}${File.separator}$utbotDir${File.separator}ternScript.js",
                 "$projectPath${File.separator}$utbotDir${File.separator}",
                 true,
