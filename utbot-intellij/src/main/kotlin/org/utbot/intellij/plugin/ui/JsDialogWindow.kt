@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.newvfs.impl.FakeVirtualFile
 import com.intellij.ui.components.Panel
 import com.intellij.ui.layout.panel
 import com.intellij.util.ui.JBUI
@@ -42,7 +43,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     private lateinit var panel: DialogPanel
 
     init {
-        if (model.testSourceRoot == null) {
+        if (model.testSourceRoot is FakeVirtualFile) {
             val file = File(model.project.basePath + "/utbot_tests/")
             file.mkdir()
             model.testSourceRoot = file.toVirtualFile()!!
@@ -105,7 +106,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         selectedTestFramework.isInstalled = true
         // TODO SEVERE: move version to TestFramework. Here is a hardcode for mocha
         JsCmdExec.runCommand("npm install -l ${selectedTestFramework.displayName.toLowerCase()}@8.0.0",
-            model.containingFilePath.replaceAfterLast("/", "")
+            model.project.basePath!!
         )
     }
 
@@ -134,7 +135,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     )
 
     private fun findFrameworkLibrary(npmPackageName: String): Boolean {
-        val bufferedReader = JsCmdExec.runCommand("npm list -l", model.containingFilePath.replaceAfterLast("/", ""))
+        val bufferedReader = JsCmdExec.runCommand("npm list -l", model.project.basePath!!)
         val checkForPackageText = bufferedReader.readText()
         bufferedReader.close()
         if (checkForPackageText == "") {
