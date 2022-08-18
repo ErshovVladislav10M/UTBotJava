@@ -43,10 +43,10 @@ import utils.toAny
 class JsTestGenerator(
     private val fileText: String,
     private val sourceFilePath: String,
-    private val projectPath: String = sourceFilePath.replaceAfterLast("/", ""),
+    private val projectPath: String = sourceFilePath.replaceAfterLast(File.separator, ""),
     private val selectedMethods: List<String>? = null,
     private val parentClassName: String? = null,
-    private val outputFilePath: String
+    private val outputFilePath: String?
 ) {
 
     private val _exports = mutableSetOf<String>()
@@ -69,7 +69,7 @@ class JsTestGenerator(
         val context = ServiceContext(
             utbotDir = utbotDir,
             projectPath = projectPath,
-            filePathToInference = sourceFilePath,
+            filePathToInference = sourceFilePath.replace("\\", "/"),
             trimmedFileText = trimmedFileText,
             fileText = fileText,
         )
@@ -143,7 +143,7 @@ class JsTestGenerator(
                     makeStringForRunJs(param, execId, classNode?.ident?.name, trimmedFileText)
                 val returnText = runJs(
                     scriptText,
-                    sourceFilePath.replaceAfterLast("/", ""),
+                    sourceFilePath.replaceAfterLast(File.separator, ""),
                 )
                 val unparsedValue =
                     resultRegex.findAll(returnText).last().groups[1]?.value ?: throw IllegalStateException()
@@ -201,7 +201,9 @@ class JsTestGenerator(
             testSets += testSet
             paramNames[execId] = funcNode.parameters.map { it.name.toString() }
         }
-        val importPrefix = PathResolver.getRelativePath(outputFilePath.substringBeforeLast('/'), sourceFilePath.substringBeforeLast('/'))
+        val importPrefix = outputFilePath?.let {
+            PathResolver.getRelativePath(it.substringBeforeLast(File.separator), sourceFilePath.substringBeforeLast(File.separator))
+        } ?: ""
         val codeGen = JsCodeGenerator(
             classId,
             paramNames,
@@ -244,7 +246,7 @@ class JsTestGenerator(
     }
 
     private fun runJs(scriptText: String, workDir: String): String {
-        val tempFile = File("$workDir/tempScriptUtbotJs.js")
+        val tempFile = File("$workDir${File.separator}tempScriptUtbotJs.js")
         tempFile.writeText(scriptText)
         tempFile.createNewFile()
         val reader = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)

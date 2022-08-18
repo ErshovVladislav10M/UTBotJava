@@ -17,6 +17,7 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import org.jetbrains.kotlin.idea.util.application.invokeLater
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
+import org.jetbrains.kotlin.konan.file.File
 import org.utbot.common.runBlockingWithCancellationPredicate
 import org.utbot.common.runIgnoringCancellationException
 import org.utbot.intellij.plugin.models.JsTestsModel
@@ -74,6 +75,7 @@ object JsDialogProcessor {
     }
 
     private fun createTests(model: JsTestsModel, containingFilePath: String, editor: Editor) {
+        val normalizedContainingFilePath = containingFilePath.replace("/", "\\")
         (object : Task.Backgroundable(model.project, "Generate tests") {
             override fun run(indicator: ProgressIndicator) {
                 runIgnoringCancellationException {
@@ -81,11 +83,11 @@ object JsDialogProcessor {
                         val testDir = PsiDirectoryFactory.getInstance(project).createDirectory(
                             model.testSourceRoot!!
                         )
-                        val testFileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
+                        val testFileName = normalizedContainingFilePath.substringAfterLast(File.separator).replace(Regex(".js"), "Test.js")
                         val testGenerator = JsTestGenerator(
                             fileText = editor.document.text,
-                            sourceFilePath = containingFilePath,
-                            projectPath = model.project.basePath
+                            sourceFilePath = normalizedContainingFilePath,
+                            projectPath = model.project.basePath?.replace("/", "\\")
                                 ?: throw IllegalStateException("Can't access project path."),
                             selectedMethods = runReadAction { model.selectedMethods.map {
                                 it.member.name!!
@@ -94,7 +96,7 @@ object JsDialogProcessor {
                                 val name = (model.selectedMethods.first().member.parent as ES6Class).name
                                 if (name == "toplevelHack") null else name
                             },
-                            outputFilePath = "${testDir.virtualFile.path}/$testFileName"
+                            outputFilePath = "${testDir.virtualFile.path}/$testFileName".replace("/", "\\")
                         )
                         val generatedCode = testGenerator.run()
                         invokeLater {

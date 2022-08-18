@@ -78,8 +78,8 @@ test("${context.filePathToInference}")
 
     fun run() {
         with(context) {
-            setupTernEnv("$projectPath/$utbotDir")
-            installDeps("$projectPath/$utbotDir")
+            setupTernEnv("$projectPath${File.separator}$utbotDir")
+            installDeps("$projectPath${File.separator}$utbotDir")
             runTypeInferencer()
         }
     }
@@ -94,10 +94,10 @@ test("${context.filePathToInference}")
 
     private fun setupTernEnv(path: String) {
         File(path).mkdirs()
-        val ternScriptFile = File("$path/ternScript.js")
+        val ternScriptFile = File("$path${File.separator}ternScript.js")
         ternScriptFile.writeText(ternScriptCode(), Charset.defaultCharset())
         ternScriptFile.createNewFile()
-        val packageJsonFile = File("$path/package.json")
+        val packageJsonFile = File("$path${File.separator}package.json")
         packageJsonFile.writeText(packageJsonCode, Charset.defaultCharset())
         packageJsonFile.createNewFile()
     }
@@ -105,8 +105,8 @@ test("${context.filePathToInference}")
     private fun runTypeInferencer() {
         with(context) {
             val reader = JsCmdExec.runCommand(
-                "node ${projectPath}/$utbotDir/ternScript.js",
-                "$projectPath/$utbotDir/",
+                "node ${projectPath}${File.separator}$utbotDir${File.separator}ternScript.js",
+                "$projectPath${File.separator}$utbotDir${File.separator}",
                 true,
             )
             val text = reader.readText().replaceAfterLast("}", "")

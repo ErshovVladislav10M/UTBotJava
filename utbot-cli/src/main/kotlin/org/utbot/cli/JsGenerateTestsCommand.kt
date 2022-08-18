@@ -24,7 +24,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generateJS", help = "Generat
     )
         .required()
         .check("Must exist and ends with .js suffix") {
-            it.endsWith(".java") && Files.exists(Paths.get(it))
+            it.endsWith(".js") && Files.exists(Paths.get(it))
         }
 
     private val targetClass by option("-c", "--class", help = "Specifies target class to generate tests for")
@@ -42,6 +42,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generateJS", help = "Generat
         .flag(default = false)
 
     override fun run() {
+
         val started = LocalDateTime.now()
         try {
             logger.debug { "Generating test for [$sourceCodeFile] - started" }
@@ -50,7 +51,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generateJS", help = "Generat
                 fileText = fileText,
                 sourceFilePath = sourceCodeFile,
                 parentClassName = targetClass,
-                outputFilePath = "",
+                outputFilePath = output,
             )
             val testCode = testGenerator.run()
             manageExports(testGenerator.exports)
