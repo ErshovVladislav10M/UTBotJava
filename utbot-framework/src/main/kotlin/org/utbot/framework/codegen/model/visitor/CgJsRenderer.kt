@@ -195,9 +195,12 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
 
     @Suppress("DuplicatedCode")
     override fun visit(element: CgTestClassFile) {
-        println("const assert = require(\"assert\")")
-        println("const fileUnderTest = require(\"./" +
-                "${(context.classUnderTest as JsClassId).filePath.substringAfterLast("/")}\")")
+//        println("const assert = require(\"assert\")")
+//        println("const fileUnderTest = require(\"./" +
+//                "${(context.classUnderTest as JsClassId).filePath.substringAfterLast("/")}\")")
+        context.collectedImports.filterIsInstance<RegularImport>().forEach {
+            renderRegularImport(it)
+        }
         println()
         element.testClass.accept(this)
     }
@@ -247,7 +250,9 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         print(")")
     }
 
-    override fun renderRegularImport(regularImport: RegularImport) {}
+    override fun renderRegularImport(regularImport: RegularImport) {
+        println("const ${regularImport.packageName} = require(\"${regularImport.className}\")")
+    }
 
     override fun renderStaticImport(staticImport: StaticImport) {
         throw Exception("Not implemented yet")
@@ -335,6 +340,8 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
     override fun renderAccess(caller: CgExpression) {
         print(".")
     }
+
+
 
     override fun renderTypeParameters(typeParameters: TypeParameters) {
         //TODO MINOR: check

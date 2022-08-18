@@ -17,8 +17,10 @@ import org.utbot.framework.plugin.api.CodeGenerationSettingItem
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.components.TestFolderComboWithBrowseButton
 import java.awt.BorderLayout
+import java.io.File
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
+import org.jetbrains.kotlin.idea.core.util.toVirtualFile
 import utils.JsCmdExec
 import kotlin.concurrent.thread
 
@@ -40,6 +42,11 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     private lateinit var panel: DialogPanel
 
     init {
+        if (model.testSourceRoot == null) {
+            val file = File(model.project.basePath + "/utbot_tests/")
+            file.mkdir()
+            model.testSourceRoot = file.toVirtualFile()!!
+        }
         title = "Generate tests with UtBot"
         initTestFrameworkPresenceThread = thread(start = true) {
             TestFramework.allJsItems.forEach {

@@ -2,8 +2,10 @@ package codegen
 
 import org.utbot.framework.codegen.ForceStaticMocking
 import org.utbot.framework.codegen.HangingTestsTimeout
+import org.utbot.framework.codegen.Import
 import org.utbot.framework.codegen.Mocha
 import org.utbot.framework.codegen.ParametrizedTestSource
+import org.utbot.framework.codegen.RegularImport
 import org.utbot.framework.codegen.RuntimeExceptionTestsBehaviour
 import org.utbot.framework.codegen.StaticsMocking
 import org.utbot.framework.codegen.TestFramework
@@ -26,6 +28,7 @@ class JsCodeGenerator(
     hangingTestsTimeout: HangingTestsTimeout = HangingTestsTimeout(),
     enableTestsTimeout: Boolean = true,
     testClassPackageName: String = classUnderTest.packageName,
+    importPrefix: String,
 ) {
     private var context: CgContext = CgContext(
         classUnderTest = classUnderTest,
@@ -40,17 +43,23 @@ class JsCodeGenerator(
         runtimeExceptionTestsBehaviour = runtimeExceptionTestsBehaviour,
         hangingTestsTimeout = hangingTestsTimeout,
         enableTestsTimeout = enableTestsTimeout,
-        testClassPackageName = testClassPackageName
+        testClassPackageName = testClassPackageName,
+        collectedImports = mutableSetOf(
+            RegularImport("assert", "assert"),
+            RegularImport(
+                "fileUnderTest",
+                "./$importPrefix/${classUnderTest.filePath.substringAfterLast("/")}"
+            )
+        )
     )
 
     fun generateAsStringWithTestReport(
         cgTestSets: List<CgMethodTestSet>,
         testClassCustomName: String? = null,
     ): TestsCodeWithTestReport = withCustomContext(testClassCustomName) {
-        context.withClassScope {
             val testClassFile = CgTestClassConstructor(context).construct(cgTestSets)
             TestsCodeWithTestReport(renderClassFile(testClassFile), testClassFile.testsGenerationReport)
-        }
+
     }
 
     private fun <R> withCustomContext(testClassCustomName: String? = null, block: () -> R): R {

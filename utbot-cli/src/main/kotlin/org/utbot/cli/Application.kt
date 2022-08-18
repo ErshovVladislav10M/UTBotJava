@@ -28,7 +28,7 @@ class UtBotCli : CliktCommand(name = "UnitTestBot Java Command Line Interface") 
 }
 
 fun main(args: Array<String>) = try {
-    UtBotCli().subcommands(GenerateTestsCommand(), BunchTestGeneratorCommand(), RunTestsCommand()).main(args)
+    UtBotCli().subcommands(GenerateTestsCommand(), BunchTestGeneratorCommand(), RunTestsCommand(), JsGenerateTestsCommand()).main(args)
 } catch (ex: Throwable) {
     ex.printStackTrace()
     exitProcess(1)

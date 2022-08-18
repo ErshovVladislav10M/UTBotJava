@@ -22,19 +22,6 @@ buildscript {
 dependencies {
     api ('com.esotericsoftware:kryo:5.1.1')
 
-    // https://mvnrepository.com/artifact/org.graalvm.js/js
-    implementation group: 'org.graalvm.js', name: 'js', version: '22.1.0.1'
-
-    // https://mvnrepository.com/artifact/org.graalvm.js/js-scriptengine
-    implementation group: 'org.graalvm.js', name: 'js-scriptengine', version: '22.1.0.1'
-
-    // https://mvnrepository.com/artifact/org.graalvm.truffle/truffle-api
-    implementation group: 'org.graalvm.truffle', name: 'truffle-api', version: '22.1.0.1'
-
-    // https://mvnrepository.com/artifact/org.graalvm.sdk/graal-sdk
-    implementation group: 'org.graalvm.sdk', name: 'graal-sdk', version: '22.1.0.1'
-
-
 
     implementation group: 'io.github.microutils', name: 'kotlin-logging', version: kotlin_logging_version
     implementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-kotlin', version: jackson_version

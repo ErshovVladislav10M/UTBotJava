@@ -12,8 +12,8 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.impl.file.PsiDirectoryFactory
 import com.intellij.util.concurrency.AppExecutorUtil
-import org.graalvm.polyglot.Context
 import org.jetbrains.kotlin.idea.util.application.invokeLater
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
@@ -57,13 +57,13 @@ object JsDialogProcessor {
         filePath: String,
         containingPsiFile: PsiFile
     ): JsDialogWindow {
-        val testModel = srcModule.testModule(project)
+        val testModule = srcModule.testModule(project)
 
         return JsDialogWindow(
             JsTestsModel(
                 project,
                 srcModule,
-                testModel,
+                testModule,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
                 containingPsiFile = containingPsiFile
@@ -76,10 +76,12 @@ object JsDialogProcessor {
     private fun createTests(model: JsTestsModel, containingFilePath: String, editor: Editor) {
         (object : Task.Backgroundable(model.project, "Generate tests") {
             override fun run(indicator: ProgressIndicator) {
-                Thread.currentThread().contextClassLoader = Context::class.java.classLoader
                 runIgnoringCancellationException {
                     runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
-
+                        val testDir = PsiDirectoryFactory.getInstance(project).createDirectory(
+                            model.testSourceRoot!!
+                        )
+                        val testFileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
                         val testGenerator = JsTestGenerator(
                             fileText = editor.document.text,
                             sourceFilePath = containingFilePath,
@@ -91,23 +93,21 @@ object JsDialogProcessor {
                             parentClassName = runReadAction {
                                 val name = (model.selectedMethods.first().member.parent as ES6Class).name
                                 if (name == "toplevelHack") null else name
-                            }
+                            },
+                            outputFilePath = "${testDir.virtualFile.path}/$testFileName"
                         )
                         val generatedCode = testGenerator.run()
-                        val testFileName = containingFilePath.substringAfterLast("/").replace(Regex(".js"), "Test.js")
                         invokeLater {
                             runWriteAction {
-                                val baseTestDirectory = model.containingPsiFile?.containingDirectory
-                                    ?: return@runWriteAction
                                 val testPsiFile =
-                                    baseTestDirectory.findFile(testFileName) ?: PsiFileFactory.getInstance(project)
+                                    testDir.findFile(testFileName) ?: PsiFileFactory.getInstance(project)
                                         .createFileFromText(testFileName, JsActionMethods.jsLanguage, generatedCode)
                                 val testFileEditor =
                                     CodeInsightUtil.positionCursor(project, testPsiFile, testPsiFile)
                                 CodeGenerationController.unblockDocument(project, testFileEditor.document)
                                 testFileEditor.document.setText(generatedCode)
                                 CodeGenerationController.unblockDocument(project, testFileEditor.document)
-                                baseTestDirectory.findFile(testFileName) ?: baseTestDirectory.add(testPsiFile)
+                                testDir.findFile(testFileName) ?: testDir.add(testPsiFile)
                             }
                         }
                         AppExecutorUtil.getAppExecutorService().submit {
@@ -127,9 +127,7 @@ object JsDialogProcessor {
         val exportLine = exports.joinToString(", ")
         val fileText = editor.document.text
         when {
-            fileText.contains("module.exports = {$exportLine}") -> {
-            }
-
+            fileText.contains("module.exports = {$exportLine}") -> {}
             fileText.contains(startComment) && !fileText.contains("module.exports = {$exportLine}") -> {
                 val regex = Regex("\n$startComment\n(.*)\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {

@@ -13,7 +13,7 @@ compileKotlin {
 dependencies {
     api project(":utbot-framework")
     api project(':utbot-summary')
-
+    api project(":utbot-js")
     implementation group: 'org.mockito', name: 'mockito-core', version: mockito_version
     // Without this dependency testng tests do not run.
     implementation group: 'com.beust', name: 'jcommander', version: '1.48'

@@ -26,6 +26,7 @@ import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
+import parser.JsClassAstVisitor
 import parser.JsFunctionAstVisitor
 import parser.JsFuzzerAstVisitor
 import parser.JsParserUtils
@@ -34,6 +35,7 @@ import service.CoverageService
 import service.ServiceContext
 import service.TernService
 import utils.JsCmdExec
+import utils.PathResolver
 import utils.constructClass
 import utils.toAny
 
@@ -42,8 +44,9 @@ class JsTestGenerator(
     private val fileText: String,
     private val sourceFilePath: String,
     private val projectPath: String = sourceFilePath.replaceAfterLast("/", ""),
-    private val selectedMethods: List<String>,
-    private val parentClassName: String? = null
+    private val selectedMethods: List<String>? = null,
+    private val parentClassName: String? = null,
+    private val outputFilePath: String
 ) {
 
     private val _exports = mutableSetOf<String>()
@@ -52,7 +55,7 @@ class JsTestGenerator(
         get() = _exports.toList()
 
     private lateinit var parsedFile: FunctionNode
-    
+
     companion object {
         const val utbotDir = "utbotJs"
     }
@@ -87,13 +90,16 @@ class JsTestGenerator(
             ternService,
             functions = extractToplevelFunctions()
         )
-
-        selectedMethods.forEach { funcName ->
-            val funcNode = getFunctionNode(
-                funcName,
+        val methods = selectedMethods?.map {
+            getFunctionNode(
+                it,
                 parentClassName,
                 trimmedFileText
             )
+        } ?: getMethodsToTest()
+        if (methods.isEmpty()) throw IllegalArgumentException("No methods to test were found!")
+        methods.forEach { funcNode ->
+
             val execId = classId.allMethods.find {
                 it.name == funcNode.name.toString()
             } ?: throw IllegalStateException()
@@ -195,9 +201,11 @@ class JsTestGenerator(
             testSets += testSet
             paramNames[execId] = funcNode.parameters.map { it.name.toString() }
         }
+        val importPrefix = PathResolver.getRelativePath(outputFilePath.substringBeforeLast('/'), sourceFilePath.substringBeforeLast('/'))
         val codeGen = JsCodeGenerator(
             classId,
             paramNames,
+            importPrefix = importPrefix
         )
         return codeGen.generateAsStringWithTestReport(testSets).generatedCode
     }
@@ -227,7 +235,7 @@ class JsTestGenerator(
     private fun collectExports(methodId: JsMethodId): List<String> {
         val res = mutableListOf<String>()
         methodId.parameters.forEach {
-            if (!(it.isJsBasic || it is JsMultipleClassId) ) {
+            if (!(it.isJsBasic || it is JsMultipleClassId)) {
                 res += it.name
             }
         }
@@ -244,26 +252,38 @@ class JsTestGenerator(
         return reader.readText()
     }
 
-    private fun makeStringForRunJs(fuzzedValue: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?, fileText: String): String {
+    private fun makeStringForRunJs(
+        fuzzedValue: List<FuzzedValue>,
+        method: JsMethodId,
+        containingClass: TruffleString?,
+        fileText: String
+    ): String {
         val callString = makeCallFunctionString(fuzzedValue, method, containingClass)
         val prefix = "Utbot result:"
         val temp = "console.log(`$prefix \"\${res}\"`)"
         val res = buildString {
             append(fileText)
             append("\n")
-            append("""
+            append(
+                """
                 {
                     let prefix = "$prefix"
                     let res = $callString
                     if (typeof res == "string") $temp
                     else console.log(prefix, res)
                 }
-            """.trimIndent())
+            """.trimIndent()
+            )
         }
         return res
     }
 
-    private fun makeCallFunctionString(fuzzedValue: List<FuzzedValue>, method: JsMethodId, containingClass: TruffleString?): String {
+    // TODO MINOR: my eyes...
+    private fun makeCallFunctionString(
+        fuzzedValue: List<FuzzedValue>,
+        method: JsMethodId,
+        containingClass: TruffleString?
+    ): String {
         val initClass = containingClass?.let {
             if (!method.isStatic) {
                 "new ${it}()."
@@ -321,5 +341,19 @@ class JsTestGenerator(
         )
         fileNode.accept(visitor)
         return visitor.targetFunctionNode
+    }
+
+    private fun getMethodsToTest() =
+        parentClassName?.let {
+            getClassMethods(it)
+        } ?: extractToplevelFunctions()
+
+    private fun getClassMethods(className: String): List<FunctionNode> {
+        val visitor = JsClassAstVisitor(className)
+        parsedFile.accept(visitor)
+        val classNode = visitor.targetClassNode
+        return classNode.classElements.filter {
+            it.value is FunctionNode
+        }.map {it.value as FunctionNode}
     }
 }
