@@ -9,9 +9,10 @@ import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 import service.TernService
 
 fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = null, functions: List<FunctionNode> = emptyList()): JsClassId {
+    val className = classNode?.ident?.name?.toString()
     val methods = classNode?.classElements?.map {
         val funcNode = it.value as FunctionNode
-        val types = ternService.processMethod(name, funcNode.name.toString())
+        val types = ternService.processMethod(className, funcNode.name.toString())
         JsMethodId(
             JsClassId(name),
             funcNode.name.toString(),
@@ -24,7 +25,7 @@ fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = n
     }?.asSequence() ?:
         // used for toplevel functions
         functions.map { funcNode ->
-            val types = ternService.processMethod(name, funcNode.name.toString(), true)
+            val types = ternService.processMethod(className, funcNode.name.toString(), true)
             JsMethodId(
                 JsClassId(name),
                 funcNode.name.toString(),

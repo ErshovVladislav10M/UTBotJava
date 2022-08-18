@@ -43,7 +43,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     private lateinit var panel: DialogPanel
 
     init {
-        if (model.testSourceRoot is FakeVirtualFile) {
+        if (model.testSourceRoot is FakeVirtualFile || model.testSourceRoot == null) {
             val file = File(model.project.basePath + "/utbot_tests/")
             file.mkdir()
             model.testSourceRoot = file.toVirtualFile()!!

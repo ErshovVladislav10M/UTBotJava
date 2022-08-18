@@ -228,7 +228,7 @@ class JsTestGenerator(
 
     private fun extractToplevelFunctions(): List<FunctionNode> {
         val visitor = JsToplevelFunctionAstVisitor()
-        parsedFile.accept(visitor)
+        parsedFile.body.accept(visitor)
         return visitor.extractedMethods
     }
 
@@ -350,7 +350,7 @@ class JsTestGenerator(
 
     private fun getClassMethods(className: String): List<FunctionNode> {
         val visitor = JsClassAstVisitor(className)
-        parsedFile.accept(visitor)
+        parsedFile.body.accept(visitor)
         val classNode = visitor.targetClassNode
         return classNode.classElements.filter {
             it.value is FunctionNode
