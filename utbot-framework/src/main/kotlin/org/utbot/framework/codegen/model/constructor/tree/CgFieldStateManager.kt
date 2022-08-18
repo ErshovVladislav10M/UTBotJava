@@ -17,7 +17,6 @@ import org.utbot.framework.codegen.model.tree.CgGetJavaClass
 import org.utbot.framework.codegen.model.tree.CgValue
 import org.utbot.framework.codegen.model.tree.CgVariable
 import org.utbot.framework.codegen.model.util.at
-import org.utbot.framework.codegen.model.util.get
 import org.utbot.framework.codegen.model.util.isAccessibleFrom
 import org.utbot.framework.codegen.model.util.stringLiteral
 import org.utbot.framework.fields.ArrayElementAccess

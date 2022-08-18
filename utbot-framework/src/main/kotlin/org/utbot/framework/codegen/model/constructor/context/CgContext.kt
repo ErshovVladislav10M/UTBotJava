@@ -165,6 +165,9 @@ internal interface CgContextOwner {
     // java.lang.reflect.Executable is a superclass of both of these types.
     var declaredExecutableRefs: PersistentMap<ExecutableId, CgVariable>
 
+    // Variables of java.lang.reflect.Field type declared in the current name scope
+    var declaredFieldRefs: PersistentMap<FieldId, CgVariable>
+
     // generated this instance for method under test
     var thisInstance: CgValue?
 
@@ -309,6 +312,7 @@ internal interface CgContextOwner {
         val prevVariableNames = existingVariableNames
         val prevDeclaredClassRefs = declaredClassRefs
         val prevDeclaredExecutableRefs = declaredExecutableRefs
+        val prevDeclaredFieldRefs = declaredFieldRefs
         val prevValueByModel = IdentityHashMap(valueByModel)
         val prevValueByModelId = valueByModelId.toMutableMap()
         return try {
@@ -317,6 +321,7 @@ internal interface CgContextOwner {
             existingVariableNames = prevVariableNames
             declaredClassRefs = prevDeclaredClassRefs
             declaredExecutableRefs = prevDeclaredExecutableRefs
+            declaredFieldRefs = prevDeclaredFieldRefs
             valueByModel = prevValueByModel
             valueByModelId = prevValueByModelId
         }
@@ -414,6 +419,7 @@ internal data class CgContext(
     override var existingVariableNames: PersistentSet<String> = persistentSetOf(),
     override var declaredClassRefs: PersistentMap<ClassId, CgVariable> = persistentMapOf(),
     override var declaredExecutableRefs: PersistentMap<ExecutableId, CgVariable> = persistentMapOf(),
+    override var declaredFieldRefs: PersistentMap<FieldId, CgVariable> = persistentMapOf(),
     override var thisInstance: CgValue? = null,
     override val methodArguments: MutableList<CgValue> = mutableListOf(),
     override val codeGenerationErrors: MutableMap<CgMethodTestSet, MutableMap<String, Int>> = mutableMapOf(),
