@@ -165,6 +165,7 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
         return proc!!
     }
     suspend fun <T> withProcess(exclusively: Boolean = false, block: suspend UtInstrumentationProcess.() -> T): T {
+        sendTimestamp.set(System.currentTimeMillis())
         var proc: UtInstrumentationProcess? = null
         try {
             if (exclusively) {
@@ -213,6 +214,9 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
                         emptyList()
                     }
                 )
+        }
+        finally {
+            receiveTimeStamp.set(System.currentTimeMillis())
         }
     }
 
