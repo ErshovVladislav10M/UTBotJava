@@ -1,5 +1,7 @@
 package org.utbot.go.gocodeanalyzer
 
+import org.utbot.common.FileUtil
+import org.utbot.common.scanForResourcesContaining
 import java.io.File
 import org.utbot.go.api.GoTypeId
 import org.utbot.go.api.GoUtFile
@@ -35,7 +37,7 @@ object GoSourceCodeAnalyzer {
         val analysisTargetsFileName = createAnalysisTargetsFileName()
         val analysisResultsFileName = createAnalysisResultsFileName()
 
-        val goCodeAnalyzerSourceDir = File(findGoCodeAnalyzerSourceDirectoryPath())
+        val goCodeAnalyzerSourceDir = extractGoCodeAnalyzerSourceDirectory()
         val analysisTargetsFile = goCodeAnalyzerSourceDir.resolve(analysisTargetsFileName)
         val analysisResultsFile = goCodeAnalyzerSourceDir.resolve(analysisResultsFileName)
 
@@ -90,9 +92,19 @@ object GoSourceCodeAnalyzer {
         }
     }
 
-    // TODO: find path by code
-    private fun findGoCodeAnalyzerSourceDirectoryPath(): String {
-        return "/home/gleb/tabs/UTBotJava/utbot-go/src/main/resources/go_source_code_analyzer/"
+    private fun extractGoCodeAnalyzerSourceDirectory(): File {
+        val sourceDirectoryName = "go_source_code_analyzer"
+        val classLoader = GoSourceCodeAnalyzer::class.java.classLoader
+
+        val containingResourceFile = classLoader.scanForResourcesContaining(sourceDirectoryName).firstOrNull()
+            ?: error("Can't find resource containing $sourceDirectoryName directory.")
+        if (containingResourceFile.extension != "jar") {
+            error("Resource for $sourceDirectoryName directory is expected to be JAR: others are not supported yet.")
+        }
+
+        val extractedJarDirectory = FileUtil.extractArchive(containingResourceFile.toPath()).toFile()
+        return extractedJarDirectory.listFiles { file -> file.name == sourceDirectoryName }?.firstOrNull()
+            ?: error("Can't find $sourceDirectoryName directory at the top level of extracted JAR ${extractedJarDirectory.absolutePath}.")
     }
 
     private fun getGoCodeAnalyzerSourceFilesNames(): List<String> {
