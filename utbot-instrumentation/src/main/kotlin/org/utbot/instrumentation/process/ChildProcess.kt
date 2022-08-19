@@ -83,8 +83,8 @@ private fun logTrace(any: () -> Any?) {
     log(ChildProcessLogLevel.Trace, any)
 }
 
-private val readStart = AtomicLong(0)
-private val readEnd = AtomicLong(0)
+private val executionStart = AtomicLong(1)
+private val executionEnd = AtomicLong(0)
 private val messageFromMainTimeoutMillis = 120 * 1000
 
 /**
@@ -102,12 +102,12 @@ suspend fun main(args: Array<String>) {
     GlobalScope.launchChild(Lifetime.Eternal, Dispatchers.Unconfined) {
         while (true) {
             val now = System.currentTimeMillis()
-            val start = readStart.get()
-            val end = readEnd.get()
+            val start = executionStart.get()
+            val end = executionEnd.get()
 
-            if (start <= end) { // process is doing something
+            if (start > end) { // process is doing something
                 delay(1000)
-            } else { // process is waiting for answer
+            } else { // process is waiting for message
                 if (now - start > messageFromMainTimeoutMillis) {
                     logInfo { "terminating lifetime" }
                     def.terminate()
@@ -131,6 +131,16 @@ suspend fun main(args: Array<String>) {
                 syncFile.delete()
             }
         }
+    }
+}
+
+fun <T> measureExecutionForTermination(block: () -> T): T {
+    try {
+        executionStart.set(System.currentTimeMillis())
+        return block()
+    }
+    finally {
+        executionEnd.set(System.currentTimeMillis())
     }
 }
 
@@ -172,47 +182,59 @@ private suspend fun initiate(lifetime: Lifetime, port: Int, pid: Int) {
     }
     val (sync, protocolModel) = obtainClientIO(lifetime, clientProtocol, pid)
     protocolModel.warmup.set { _ ->
-        val time = measureTimeMillis {
-            HandlerClassesLoader.scanForClasses("").toList() // here we transform classes
+        measureExecutionForTermination {
+            val time = measureTimeMillis {
+                HandlerClassesLoader.scanForClasses("").toList() // here we transform classes
+            }
+            logInfo { "warmup finished in $time ms" }
         }
-        logInfo { "warmup finished in $time ms" }
     }
     protocolModel.invokeMethodCommand.set { params ->
-        val clazz = HandlerClassesLoader.loadClass(params.classname)
-        val res = instrumentation.invoke(
-            clazz,
-            params.signature,
-            kryoHelper.readObject(params.arguments),
-            kryoHelper.readObject(params.parameters)
-        )
+        measureExecutionForTermination {
+            val clazz = HandlerClassesLoader.loadClass(params.classname)
+            val res = instrumentation.invoke(
+                clazz,
+                params.signature,
+                kryoHelper.readObject(params.arguments),
+                kryoHelper.readObject(params.parameters)
+            )
 
-        logInfo { "sent cmd: $res" }
-        InvokeMethodCommandResult(kryoHelper.writeObject(res))
+            logInfo { "sent cmd: $res" }
+            InvokeMethodCommandResult(kryoHelper.writeObject(res))
+        }
     }
     protocolModel.setInstrumentation.set { params ->
-        instrumentation = kryoHelper.readObject(params.instrumentation)
-        Agent.dynamicClassTransformer.transformer = instrumentation // classTransformer is set
-        Agent.dynamicClassTransformer.addUserPaths(pathsToUserClasses)
-        instrumentation.init(pathsToUserClasses)
+        measureExecutionForTermination {
+            instrumentation = kryoHelper.readObject(params.instrumentation)
+            Agent.dynamicClassTransformer.transformer = instrumentation // classTransformer is set
+            Agent.dynamicClassTransformer.addUserPaths(pathsToUserClasses)
+            instrumentation.init(pathsToUserClasses)
+        }
     }
     protocolModel.addPaths.set { params ->
-        pathsToUserClasses = params.pathsToUserClasses.split(File.pathSeparatorChar).toSet()
-        pathsToDependencyClasses = params.pathsToDependencyClasses.split(File.pathSeparatorChar).toSet()
-        HandlerClassesLoader.addUrls(pathsToUserClasses)
-        HandlerClassesLoader.addUrls(pathsToDependencyClasses)
-        kryoHelper.setKryoClassLoader(HandlerClassesLoader) // Now kryo will use our classloader when it encounters unregistered class.
+        measureExecutionForTermination {
+            pathsToUserClasses = params.pathsToUserClasses.split(File.pathSeparatorChar).toSet()
+            pathsToDependencyClasses = params.pathsToDependencyClasses.split(File.pathSeparatorChar).toSet()
+            HandlerClassesLoader.addUrls(pathsToUserClasses)
+            HandlerClassesLoader.addUrls(pathsToDependencyClasses)
+            kryoHelper.setKryoClassLoader(HandlerClassesLoader) // Now kryo will use our classloader when it encounters unregistered class.
 
-        logTrace { "User classes:" + pathsToUserClasses.joinToString() }
+            logTrace { "User classes:" + pathsToUserClasses.joinToString() }
 
-        UtContext.setUtContext(UtContext(HandlerClassesLoader))
+            UtContext.setUtContext(UtContext(HandlerClassesLoader))
+        }
     }
     protocolModel.stopProcess.set { _ ->
-        def.complete(Unit)
+        measureExecutionForTermination {
+            def.complete(Unit)
+        }
     }
     protocolModel.collectCoverage.set { params ->
-        val anyClass: Class<*> = kryoHelper.readObject(params.clazz)
-        val result = (instrumentation as CoverageInstrumentation).collectCoverageInfo(anyClass)
-        CollectCoverageResult(kryoHelper.writeObject(result))
+        measureExecutionForTermination {
+            val anyClass: Class<*> = kryoHelper.readObject(params.clazz)
+            val result = (instrumentation as CoverageInstrumentation).collectCoverageInfo(anyClass)
+            CollectCoverageResult(kryoHelper.writeObject(result))
+        }
     }
     signalChildReady(pid)
     logInfo { "IO obtained" }
