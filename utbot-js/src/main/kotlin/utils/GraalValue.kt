@@ -8,10 +8,10 @@ import org.utbot.framework.plugin.api.util.jsNumberClassId
 import org.utbot.framework.plugin.api.util.jsStringClassId
 import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 
-fun String.toAny(returnType: JsClassId): Pair<Any?, JsClassId> {
+fun String.toJsAny(returnType: JsClassId): Pair<Any?, JsClassId> {
     return when {
         this == "true" || this == "false" -> toBoolean() to jsBooleanClassId
-        this == "null" -> null to jsUndefinedClassId
+        this == "null" || this == "undefined" -> null to jsUndefinedClassId
         Regex("\".*\"").matches(this) -> this.replace("\"","") to jsStringClassId
         else -> {
             if (contains('.')) {
@@ -34,7 +34,7 @@ private fun makeObject(objString: String): Map<String, Any>? {
         val json = JSONObject(trimmed)
         val resMap = mutableMapOf<String, Any>()
         json.keySet().forEach {
-            resMap[it] = json.get(it).toString().toAny(jsUndefinedClassId).first as Any
+            resMap[it] = json.get(it).toString().toJsAny(jsUndefinedClassId).first as Any
         }
         resMap
     } catch (e: JSONException) {
