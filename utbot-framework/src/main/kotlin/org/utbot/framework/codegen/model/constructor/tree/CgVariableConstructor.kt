@@ -351,7 +351,7 @@ internal class CgVariableConstructor(val context: CgContext) :
         val init = if (classId.isAccessibleFrom(testClassPackageName)) {
             CgGetJavaClass(classId)
         } else {
-            classId[forName](classId.name)
+            Class::class.id[forName](classId.name)
         }
 
         return newVar(Class::class.id, baseName) { init }
