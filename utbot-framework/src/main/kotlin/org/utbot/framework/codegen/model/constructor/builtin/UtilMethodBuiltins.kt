@@ -66,7 +66,7 @@ internal val ClassId.setFieldMethodId: MethodId
     get() = utilMethodId(
             name = "setField",
             returnType = voidClassId,
-            arguments = arrayOf(objectClassId, stringClassId, objectClassId)
+            arguments = arrayOf(objectClassId, stringClassId, stringClassId, objectClassId)
     )
 
 internal val ClassId.setStaticFieldMethodId: MethodId
@@ -80,7 +80,7 @@ internal val ClassId.getFieldValueMethodId: MethodId
     get() = utilMethodId(
             name = "getFieldValue",
             returnType = objectClassId,
-            arguments = arrayOf(objectClassId, stringClassId)
+            arguments = arrayOf(objectClassId, stringClassId, stringClassId)
     )
 
 internal val ClassId.getStaticFieldValueMethodId: MethodId

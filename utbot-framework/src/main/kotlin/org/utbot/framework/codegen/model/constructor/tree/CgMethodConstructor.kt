@@ -37,7 +37,6 @@ import org.utbot.framework.codegen.model.tree.CgExecutableCall
 import org.utbot.framework.codegen.model.tree.CgExpression
 import org.utbot.framework.codegen.model.tree.CgFieldAccess
 import org.utbot.framework.codegen.model.tree.CgGetJavaClass
-import org.utbot.framework.codegen.model.tree.CgIsInstance
 import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgMethod
 import org.utbot.framework.codegen.model.tree.CgMethodCall
@@ -75,7 +74,6 @@ import org.utbot.framework.codegen.model.util.length
 import org.utbot.framework.codegen.model.util.lessThan
 import org.utbot.framework.codegen.model.util.nullLiteral
 import org.utbot.framework.codegen.model.util.resolve
-import org.utbot.framework.codegen.model.util.stringLiteral
 import org.utbot.framework.fields.ExecutionStateAnalyzer
 import org.utbot.framework.fields.FieldPath
 import org.utbot.framework.plugin.api.BuiltinClassId
@@ -111,7 +109,6 @@ import org.utbot.framework.plugin.api.UtTimeoutException
 import org.utbot.framework.plugin.api.UtVoidModel
 import org.utbot.framework.plugin.api.onFailure
 import org.utbot.framework.plugin.api.onSuccess
-import org.utbot.framework.plugin.api.util.booleanClassId
 import org.utbot.framework.plugin.api.util.doubleArrayClassId
 import org.utbot.framework.plugin.api.util.doubleClassId
 import org.utbot.framework.plugin.api.util.doubleWrapperClassId
@@ -885,7 +882,7 @@ internal class CgMethodConstructor(val context: CgContext) : CgContextOwner by c
         if (variable.type.hasField(this) && isAccessibleFrom(testClassPackageName)) {
             if (jField.isStatic) CgStaticFieldAccess(this) else CgFieldAccess(variable, this)
         } else {
-            testClassThisInstance[getFieldValue](variable, stringLiteral(name))
+            testClassThisInstance[getFieldValue](variable, this.declaringClass.name, this.name)
         }
 
     /**

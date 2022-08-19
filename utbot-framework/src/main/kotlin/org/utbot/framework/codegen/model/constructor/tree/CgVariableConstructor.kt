@@ -145,7 +145,7 @@ internal class CgVariableConstructor(val context: CgContext) :
                 fieldAccess `=` variableForField
             } else {
                 // composite models must not have info about static fields, hence only non-static fields are set here
-                +testClassThisInstance[setField](obj, fieldId.name, variableForField)
+                +testClassThisInstance[setField](obj, fieldId.declaringClass.name, fieldId.name, variableForField)
             }
         }
         return obj
