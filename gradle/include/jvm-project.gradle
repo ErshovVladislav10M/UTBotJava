@@ -57,12 +57,12 @@ test {
     }
 
 //    uncomment to see logs in CI
-//    testLogging.showStandardStreams true
-//    testLogging.exceptionFormat 'full'
-//
-//    beforeTest { descriptor ->
-//        println "----------------------------[$descriptor.classDisplayName] [$descriptor.displayName]--------------------------------------"
-//    }
+    testLogging.showStandardStreams true
+    testLogging.exceptionFormat 'full'
+
+    beforeTest { descriptor ->
+        println "----------------------------[$descriptor.classDisplayName] [$descriptor.displayName]--------------------------------------"
+    }
 
     afterTest { descriptor, result ->
         println "[$descriptor.classDisplayName] [$descriptor.displayName]: $result.resultType, length - ${(result.endTime - result.startTime) / 1000.0} sec"
