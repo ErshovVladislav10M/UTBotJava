@@ -108,7 +108,7 @@ suspend fun main(args: Array<String>) {
             if (start > end) { // process is doing something
                 delay(1000)
             } else { // process is waiting for message
-                if (now - start > messageFromMainTimeoutMillis) {
+                if (now - end > messageFromMainTimeoutMillis) {
                     logInfo { "terminating lifetime" }
                     def.terminate()
                     break
