@@ -25,8 +25,8 @@ import utils.constructClass
  */
 class TernService(val context: ServiceContext) {
 
-    companion object {
-        private const val packageJsonCode = """
+
+    private val packageJsonCode = """
 {
     "name": "utbotTern",
     "version": "1.0.0",
@@ -35,7 +35,7 @@ class TernService(val context: ServiceContext) {
     }
 }
     """
-    }
+
     private fun ternScriptCode() = """
 const tern = require("tern/lib/tern")
 const condense = require("tern/lib/condense.js")
@@ -132,8 +132,9 @@ test("${context.filePathToInference}")
             val paramList = value.split(',')
             paramList.map { param ->
                 val paramReg = Regex(":(.*)")
-                makeClassId(paramReg.find(param)?.groups?.get(1)?.value
-                    ?: throw IllegalStateException()
+                makeClassId(
+                    paramReg.find(param)?.groups?.get(1)?.value
+                        ?: throw IllegalStateException()
                 )
             }
         } ?: emptyList()
