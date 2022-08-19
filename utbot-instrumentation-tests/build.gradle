@@ -11,6 +11,9 @@ dependencies {
     testImplementation project(':utbot-instrumentation')
     testImplementation project(':utbot-sample')
     testImplementation group: 'org.jacoco', name: 'org.jacoco.report', version: jacoco_version
+    implementation group: 'com.jetbrains.rd', name: 'rd-framework', version: '2022.2.5'
+    implementation group: 'com.jetbrains.rd', name: 'rd-gen', version: '2022.2.5'
+    implementation group: 'com.jetbrains.rd', name: 'rd-core', version: '2022.2.5'
 }
 
 processResources {

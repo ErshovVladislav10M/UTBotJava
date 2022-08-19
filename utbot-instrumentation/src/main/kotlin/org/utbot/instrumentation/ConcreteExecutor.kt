@@ -2,6 +2,7 @@ package org.utbot.instrumentation
 
 import com.jetbrains.rd.util.Logger
 import com.jetbrains.rd.util.lifetime.*
+import com.jetbrains.rd.util.reactive.RdFault
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
