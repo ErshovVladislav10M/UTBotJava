@@ -1,30 +1,25 @@
 package org.utbot.instrumentation.rd
 
-import com.jetbrains.rd.framework.base.bind
 import com.jetbrains.rd.framework.base.static
 import com.jetbrains.rd.framework.impl.RdSignal
 import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.lifetime.isAlive
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
-import org.utbot.common.catch
 import org.utbot.common.pid
 import org.utbot.instrumentation.instrumentation.Instrumentation
 import org.utbot.instrumentation.process.ChildProcessRunner
+import org.utbot.instrumentation.rd.generated.AddPathsParams
+import org.utbot.instrumentation.rd.generated.ProtocolModel
+import org.utbot.instrumentation.rd.generated.SetInstrumentationParams
+import org.utbot.instrumentation.rd.generated.protocolModel
 import org.utbot.instrumentation.util.KryoHelper
-import org.utbot.instrumentation.util.Protocol
-import org.utbot.instrumentation.util.ReadingFromKryoException
 import org.utbot.rd.ProcessWithRdServer
-import org.utbot.rd.UtRdCoroutineScope
 import org.utbot.rd.UtRdUtil
 import java.io.File
 import java.nio.file.Files
-import java.util.concurrent.ConcurrentMap
-import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger{}
 private const val fileWaitTimeoutMillis = 10L
@@ -46,21 +41,20 @@ class UtInstrumentationProcess private constructor(
     private val classLoader: ClassLoader?,
     private val rdProcess: ProcessWithRdServer
 ) : ProcessWithRdServer by rdProcess {
-    private var lastSentId = 0L
-    private var lastReceivedId = 0L
-    private val callbacks: ConcurrentMap<Long, CompletableDeferred<Protocol.Command>> = ConcurrentSkipListMap()
-    private val toProcess = RdSignal<ByteArray>().static(1).apply { async = true }
-    private val fromProcess = RdSignal<ByteArray>().static(2).apply { async = true }
-    private val sync = RdSignal<String>().static(3).apply { async = true }
+    private val sync = RdSignal<String>().static(1).apply { async = true }
+    val kryoHelper = KryoHelper(lifetime.createNested()).apply {
+        classLoader?.let { setKryoClassLoader(it) }
+    }
+    val protocolModel: ProtocolModel
+        get() = protocol.protocolModel
 
     private suspend fun init(): UtInstrumentationProcess {
         lifetime.usingNested { operation ->
             val bound = CompletableDeferred<Boolean>()
 
             protocol.scheduler.invokeOrQueue {
-                toProcess.bind(lifetime, protocol, toProcess.rdid.toString())
-                fromProcess.bind(lifetime, protocol, fromProcess.rdid.toString())
                 sync.bind(lifetime, protocol, sync.rdid.toString())
+                protocol.protocolModel
                 bound.complete(true)
             }
             operation.onTermination { bound.cancel() }
@@ -100,22 +94,8 @@ class UtInstrumentationProcess private constructor(
             }
         }
 
-        kryoHelper = KryoHelper(
-            rdProcess.lifetime.createNested(),
-            fromProcess,
-            toProcess,
-            logger::trace
-        ).apply {
-            classLoader?.let { setKryoClassLoader(it) }
-        }
-
-        receiver.start()
-
         return this
     }
-
-    private val receiver: Thread
-    private lateinit var kryoHelper: KryoHelper
 
     companion object {
         suspend operator fun <TIResult, TInstrumentation : Instrumentation<TIResult>> invoke(
@@ -142,139 +122,16 @@ class UtInstrumentationProcess private constructor(
             }
 
             logger.trace("sending add paths")
-            proc.execute(
-                Protocol.AddPathsCommand(
-                    pathsToUserClasses,
-                    pathsToDependencyClasses
-                )
-            )
+            proc.protocolModel.addPaths.startSuspending(proc.lifetime, AddPathsParams(
+                pathsToUserClasses,
+                pathsToDependencyClasses))
 
             logger.trace("sending instrumentation")
-            proc.execute(Protocol.SetInstrumentationCommand(instrumentation))
+            proc.protocolModel.setInstrumentation.startSuspending(proc.lifetime, SetInstrumentationParams(
+                proc.kryoHelper.writeObject(instrumentation)))
             logger.trace("start commands sent")
 
             return proc
-        }
-    }
-
-    private fun sendCommand(id: Long, cmd: Protocol.Command) {
-        kryoHelper.writeCommand(id, cmd)
-    }
-
-    /**
-     * Send command and instantly return
-     *
-     * @throws CancellationException process lifetime terminated and/or coroutine was cancelled
-     */
-    suspend fun request(cmd: Protocol.Command) {
-        doCommand(cmd, awaitAnswer = false)
-    }
-
-    /**
-     * Send command and wait answer from child process
-     *
-     * @return command from child process, possibly indicating operation failure
-     * @throws CancellationException process lifetime terminated and/or coroutine was cancelled
-     */
-    suspend fun execute(cmd: Protocol.Command): Protocol.Command {
-        return doCommand(cmd, awaitAnswer = true)!!
-    }
-
-    private suspend fun doCommand(cmd: Protocol.Command, awaitAnswer: Boolean = true): Protocol.Command? =
-        lifetime.usingNested { operationLifetime ->
-            // some models use utcontext in toString method
-            // utcontext is thread local, and so because UtRdCoroutineScope has its own thread - error is thrown
-            // so we do toString here, and only if trace is available
-            val cmdString: String? = if (logger.isTraceEnabled) cmd.toString() else null
-
-            // if utbot cancels this job by timeout - await will throw cancellationException
-            // also if process lifetime terminated - deferred from async call also cancelled and await throws cancellationException
-            // if await succeeded - then process lifetime is ok and no timeout happened
-            return com.jetbrains.rd.framework.util.withContext(
-                operationLifetime,
-                UtRdCoroutineScope.current.coroutineContext
-            ) {
-                val cmdId = ++lastSentId
-                val deferred = CompletableDeferred<Protocol.Command>()
-
-                try {
-                    callbacks[cmdId] = deferred
-                    operationLifetime.onTermination {
-                        callbacks.remove(cmdId)?.run {
-                            if (awaitAnswer) {
-                                logger.trace { "operation $cmdId for $cmdString ended by timeout" }
-                                deferred.cancel(CancellationException())
-                            }
-                        }
-                    }
-                    logger.trace { "Writing $cmdId, $cmdString to channel" }
-                    sendCommand(cmdId, cmd)
-                } catch (e: Throwable) { // means not sent
-                    callbacks.remove(cmdId)?.let {
-                        logger.trace { "operation $cmdId for cmd - $cmdString completed with exception: $e\nstacktrace - ${e.stackTraceToString()}" }
-                        deferred.completeExceptionally(e)
-                    }
-                }
-
-                return@withContext if (awaitAnswer) {
-                    deferred.await()
-                } else {
-                    null
-                }.apply { logger.trace { "operation $cmdId ended successfully for cmd - $cmdString, result - $this" } }
-            }
-        }
-
-    private fun resumeWith(contId: Long, command: Protocol.Command) {
-        logger.trace { "received: $contId | $command" }
-
-        for (id in lastReceivedId + 1 until contId) {
-            callbacks.remove(id)
-                ?.complete(Protocol.ExceptionInChildProcess(java.lang.IllegalStateException("id $id was skipped in execution")))
-        }
-
-        // 1. if value is not null - we resumed deferred with result
-        // meaning request is completed successfully
-        // 2. if value is null
-        // this happens because operation lifetime terminated before we resume deferred
-        callbacks.remove(contId)?.complete(command)
-    }
-
-    init {
-        receiver =
-            thread(
-                name = "UtInstrumentationProcess-${rdProcess.process.pid}-receiver",
-                isDaemon = true,
-                start = false
-            ) {
-                while (lifetime.isAlive) {
-                    try {
-                        val (commandId, command) = kryoHelper.readCommand()
-
-                        resumeWith(commandId, command)
-                    } catch (e: InterruptedException) {
-                        break
-                    } catch (e: CancellationException) {
-                        // process lifetime terminated, all operations will be cancelled and remove from callback automatically
-                        // new operations will not be accepted by lifetime
-                        break
-                    } catch (e: Throwable) {
-                        if (e is ReadingFromKryoException && e.cause is InterruptedException)
-                            break
-                        // means we can't read somewhy
-                        // kryo input buffer might be corrupted and any subsequent reads might fail or return incorrect data
-                        // example of incorrect data might be incomplete strings
-                        // buffer already filled, and we don't know how much it consumed
-                        // all data read in kryo.input must be discarded
-                        // also last received message from which buffer is filled should be also discarded
-                        // because we send only complete messages - further messages should be ok
-                        logger.warn { "Cant read from kryo - $e" }
-                        kryoHelper.discard()
-                    }
-                }
-            }
-
-        lifetime.onTermination {
-            logger.catch { receiver.interrupt() }
         }
     }
 }

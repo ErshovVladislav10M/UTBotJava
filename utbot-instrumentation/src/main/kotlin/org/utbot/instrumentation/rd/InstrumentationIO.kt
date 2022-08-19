@@ -5,6 +5,8 @@ import com.jetbrains.rd.framework.base.static
 import com.jetbrains.rd.framework.impl.RdSignal
 import com.jetbrains.rd.util.lifetime.Lifetime
 import org.utbot.common.utBotTempDirectory
+import org.utbot.instrumentation.rd.generated.ProtocolModel
+import org.utbot.instrumentation.rd.generated.protocolModel
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -13,18 +15,19 @@ const val rdProcessDirName = "rdProcessSync"
 val processSyncDirectory = File(utBotTempDirectory.toFile(), rdProcessDirName)
 private val awaitTimeoutMillis: Long = 120 * 1000
 
-internal fun obtainClientIO(lifetime: Lifetime, protocol: Protocol, pid: Int): InstrumentationIO {
-    val latch = CountDownLatch(3)
-    val mainToProcess = RdSignal<ByteArray>().static(1).init(lifetime, protocol, latch)
-    val processToMain = RdSignal<ByteArray>().static(2).init(lifetime, protocol, latch)
-    val sync = RdSignal<String>().static(3).init(lifetime, protocol, latch)
+internal fun obtainClientIO(lifetime: Lifetime, protocol: Protocol, pid: Int): Pair<RdSignal<String>, ProtocolModel> {
+    val latch = CountDownLatch(2)
+    val sync = RdSignal<String>().static(1).init(lifetime, protocol, latch)
+
+    protocol.scheduler.invokeOrQueue {
+        protocol.protocolModel
+        latch.countDown()
+    }
 
     if (!latch.await(awaitTimeoutMillis, TimeUnit.MILLISECONDS))
         throw IllegalStateException("Cannot bind signals")
 
-    signalChildReady(pid)
-
-    return InstrumentationIO(mainToProcess, processToMain, sync)
+    return sync to protocol.protocolModel
 }
 
 internal fun childCreatedFileName(pid: Int): String {
@@ -56,9 +59,3 @@ private fun <T> RdSignal<T>.init(lifetime: Lifetime, protocol: Protocol, latch: 
         }
     }
 }
-
-internal data class InstrumentationIO(
-    val mainToChild: RdSignal<ByteArray>,
-    val childToMain: RdSignal<ByteArray>,
-    val sync: RdSignal<String>
-)

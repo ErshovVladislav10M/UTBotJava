@@ -1,3 +1,9 @@
+import com.jetbrains.rd.generator.gradle.RdGenExtension
+import com.jetbrains.rd.generator.gradle.RdGenTask
+
+plugins {
+    id 'com.jetbrains.rdgen' version "2022.2.5"
+}
 apply from: "${parent.projectDir}/gradle/include/jvm-project.gradle"
 
 dependencies {
@@ -40,4 +46,29 @@ configurations {
 
 artifacts {
     instrumentationArchive jar
+}
+
+def repoRoot = project.projectDir
+def hashBaseDir = new File(repoRoot, "build/rdgen")
+def rdBaseDir = new File(repoRoot, "src/main/kotlin/org/utbot/instrumentation/rd")
+def rdOutputDir = new File(rdBaseDir, "generated")
+
+task generateProtocolModels(type: RdGenTask) {
+    group = "rdgen"
+    // todo which extensions
+    def rdParams = extensions.getByName("params") as RdGenExtension
+    rdParams.verbose = true
+
+    rdParams.sources(new File(rdBaseDir, "models"))
+    rdParams.hashFolder = new File(hashBaseDir, "models").canonicalPath
+    rdParams.packages = "org.utbot.instrumentation.rd.models"
+
+    rdParams.generator {
+        language = "kotlin"
+        transform = "symmetric"
+        root = "org.utbot.instrumentation.rd.models.ProtocolRoot"
+
+        directory = rdOutputDir.canonicalPath
+        namespace = "org.utbot.instrumentation.rd.generated"
+    }
 }

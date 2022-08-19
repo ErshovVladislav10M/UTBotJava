@@ -1,17 +1,13 @@
 package org.utbot.instrumentation
 
-import com.jetbrains.rd.util.ILoggerFactory
 import com.jetbrains.rd.util.Logger
-import com.jetbrains.rd.util.Statics
 import com.jetbrains.rd.util.lifetime.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
-import org.utbot.common.catch
 import org.utbot.common.pid
-import org.utbot.common.trace
 import org.utbot.framework.plugin.api.ConcreteExecutionFailureException
 import org.utbot.framework.plugin.api.util.UtContext
 import org.utbot.framework.plugin.api.util.signature
@@ -19,8 +15,8 @@ import org.utbot.instrumentation.instrumentation.Instrumentation
 import org.utbot.instrumentation.process.ChildProcessRunner
 import org.utbot.instrumentation.rd.UtInstrumentationProcess
 import org.utbot.instrumentation.rd.UtRdLoggerFactory
+import org.utbot.instrumentation.rd.generated.InvokeMethodCommandParams
 import org.utbot.instrumentation.util.ChildProcessError
-import org.utbot.instrumentation.util.Protocol
 import org.utbot.rd.terminateOnException
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicLong
@@ -147,6 +143,7 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
 
     // this function is intended to be called under corMutex
     private suspend fun regenerate(): UtInstrumentationProcess {
+
         def.throwIfNotAlive()
         var proc : UtInstrumentationProcess? = processInstance
 
@@ -166,23 +163,55 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
 
         return proc!!
     }
-
-    private suspend inline fun <T> withProcess(block: UtInstrumentationProcess.() -> T): T {
-        val proc: UtInstrumentationProcess
-
-        corMutex.withLock {
-            proc = regenerate()
+    suspend fun <T> withProcess(exclusively: Boolean = false, block: suspend UtInstrumentationProcess.() -> T): T {
+        var proc: UtInstrumentationProcess? = null
+        try {
+            if (exclusively) {
+                corMutex.withLock {
+                    proc = regenerate()
+                    return proc!!.block()
+                }
+            }
+            else {
+                return corMutex.withLock { regenerate().apply { proc = this } }.block()
+            }
         }
-
-        return proc.block()
-    }
-
-    private suspend inline fun <T> withProcessExclusively(block: UtInstrumentationProcess.() -> T): T {
-        val proc: UtInstrumentationProcess
-
-        corMutex.withLock {
-            proc = regenerate()
-            return proc.block()
+        catch (e: CancellationException) {
+            // cancellation can be from 2 causes
+            // 1. process died, its lifetime terminated, so operation was cancelled
+            // this clearly indicates child process death -> ConcreteExecutionFailureException
+            if (proc?.lifetime?.isAlive != true)
+                throw ConcreteExecutionFailureException(
+                    e,
+                    childProcessRunner.errorLogFile,
+                    try {
+                        proc!!.process.inputStream.bufferedReader().lines().toList()
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                )
+            // 2. it can be ordinary timeout from coroutine. then just rethrow
+            else
+                throw e
+        }
+        catch(e: Throwable) {
+            // this command is either
+            // 1. sent by child process meaning something is bad
+            // 2. may be generated in UtInstrumentationProcess if it notices command reordering,
+            // for example kryo in child process could not deserialize some message so it was not answered
+            // see: ChildProcessError, ConcreteExecutionFailureException
+            if (proc?.lifetime?.isAlive == true)
+                throw ChildProcessError(e)
+            else
+                throw ConcreteExecutionFailureException(
+                    e,
+                    childProcessRunner.errorLogFile,
+                    try {
+                        proc!!.process.inputStream.bufferedReader().lines().toList()
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                )
         }
     }
 
@@ -206,63 +235,18 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
         } // actually executableId implements the same logic, but it requires UtContext
 
         try {
-            val cmd = Protocol.InvokeMethodCommand(clazz.name, signature, arguments.asList(), parameters)
+            return withProcess {
+                val argumentsByteArray = kryoHelper.writeObject(arguments.asList())
+                val parametersByteArray = kryoHelper.writeObject(parameters)
+                val params = InvokeMethodCommandParams(clazz.name, signature, argumentsByteArray, parametersByteArray)
 
-            return (execute(cmd) as Protocol.InvocationResultCommand<TIResult>).result
+                val ba = protocolModel.invokeMethodCommand.startSuspending(lifetime, params).result
+                kryoHelper.readObject(ba)
+            }
         } catch (e: Throwable) {
             logger.trace { "executeAsync, response(ERROR): $e" }
             throw e
         }
-    }
-
-    suspend fun <T : Protocol.Command> execute(cmd: T): Protocol.Command = withProcess {
-        try {
-            logger.info { "executing on pid - ${process.pid}, alive - ${process.isAlive}"}
-            sendTimestamp.set(System.currentTimeMillis())
-            return when (val result = execute(cmd)) {
-                is Protocol.ExceptionInChildProcess -> {
-                    // this command is either
-                    // 1. sent by child process meaning something is bad
-                    // 2. may be generated in UtInstrumentationProcess if it notices command reordering,
-                    // for example kryo in child process could not deserialize some message so it was not answered
-                    // see: ChildProcessError, ConcreteExecutionFailureException
-                    if (lifetime.isAlive)
-                        throw ChildProcessError(result.exception)
-                    else
-                        throw ConcreteExecutionFailureException(
-                            result.exception,
-                            childProcessRunner.errorLogFile,
-                            process.inputStream.bufferedReader().lines().toList()
-                        )
-                }
-                else -> result
-            }
-        } catch (e: CancellationException) {
-            // cancellation can be from 2 causes
-            // 1. process died, its lifetime terminated, so operation was cancelled
-            // this clearly indicates child process death -> ConcreteExecutionFailureException
-            if (lifetime.isNotAlive)
-                throw ConcreteExecutionFailureException(
-                    e,
-                    childProcessRunner.errorLogFile,
-                    try {
-                        process.inputStream.bufferedReader().lines().toList()
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-                )
-            // 2. it can be ordinary timeout from coroutine. then just rethrow
-            else
-                throw e
-        } finally {
-            receiveTimeStamp.set(System.currentTimeMillis())
-        }
-    }
-
-    suspend fun <T : Protocol.Command> request(cmd: T) = withProcess {
-        logger.info { "requesting on pid - ${process.pid}, alive - ${process.isAlive}"}
-        sendTimestamp.set(System.currentTimeMillis())
-        request(cmd)
     }
 
     override fun close() {
@@ -271,7 +255,9 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
                 if (alive) {
                     logger.trace("doing close")
                     try {
-                        processInstance?.request(Protocol.StopProcessCommand())
+                        processInstance?.run {
+                            protocolModel.stopProcess.start(lifetime, Unit)
+                        }
                     } catch (_: Exception) {}
                     processInstance = null
                 }
@@ -282,5 +268,7 @@ class ConcreteExecutor<TIResult, TInstrumentation : Instrumentation<TIResult>> p
 }
 
 fun ConcreteExecutor<*,*>.warmup() = runBlocking {
-    request(Protocol.WarmupCommand())
+    withProcess {
+        protocolModel.warmup.start(lifetime, Unit)
+    }
 }
