@@ -93,6 +93,8 @@ class TestCodeGeneratorPipeline(private val testFrameworkConfiguration: TestFram
                                 ParametrizedTestSource.DO_NOT_PARAMETRIZE -> "fun "
                                 ParametrizedTestSource.PARAMETRIZE -> "fun parameterizedTestsFor"
                             }
+
+                        CodegenLanguage.JS -> throw UnsupportedOperationException()
                     }
                     trimmedLine.startsWith(prefix)
                 }

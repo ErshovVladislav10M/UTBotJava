@@ -26,6 +26,7 @@ import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
+import org.utbot.fuzzer.SimpleIdGenerator
 import parser.JsClassAstVisitor
 import parser.JsFunctionAstVisitor
 import parser.JsFuzzerAstVisitor
@@ -120,6 +121,7 @@ class JsTestGenerator(
                     .shuffled()
                     .take(500)
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
+            val idGenerator = SimpleIdGenerator()
             fuzzedValues.indices.toList().parallelStream().forEach {
                 val scriptText =
                     makeStringForRunJs(
@@ -128,8 +130,8 @@ class JsTestGenerator(
                         classNode?.ident?.name,
                         trimmedFileText
                     )
-                val id = Thread.currentThread().id
-                val coverageService = CoverageService(context, scriptText, id)
+                val id = idGenerator.asInt
+                val coverageService = CoverageService(context, scriptText, id.toLong())
                 coveredBranchesArray[it] = coverageService.getCoveredLines()
             }
             val testsForGenerator = mutableListOf<UtExecution>()

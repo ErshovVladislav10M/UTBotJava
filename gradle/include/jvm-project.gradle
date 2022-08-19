@@ -34,7 +34,7 @@ java {
 }
 
 compileJava {
-    options.compilerArgs << '-Werror' << '-Xlint:all'
+    options.compilerArgs << '-Xlint:all'
     options.encoding = 'UTF-8'
 }
 
