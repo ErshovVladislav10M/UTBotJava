@@ -171,6 +171,7 @@ private suspend fun initiate(lifetime: Lifetime, port: Int, pid: Int) {
     })
 
     val def = CompletableDeferred<Unit>()
+    lifetime.onTermination { def.complete(Unit) }
     val kryoHelper = KryoHelper(lifetime)
     logInfo { "kryo created" }
 
