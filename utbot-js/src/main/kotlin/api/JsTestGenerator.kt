@@ -38,7 +38,7 @@ import service.TernService
 import utils.JsCmdExec
 import utils.PathResolver
 import utils.constructClass
-import utils.toAny
+import utils.toJsAny
 
 
 class JsTestGenerator(
@@ -57,9 +57,7 @@ class JsTestGenerator(
 
     private lateinit var parsedFile: FunctionNode
 
-    companion object {
-        const val utbotDir = "utbotJs"
-    }
+    private val utbotDir = "utbotJs"
 
     /**
      * Returns String representation of generated tests.
@@ -149,7 +147,7 @@ class JsTestGenerator(
                 )
                 val unparsedValue =
                     resultRegex.findAll(returnText).last().groups[1]?.value ?: throw IllegalStateException()
-                val (returnValue, valueClassId) = unparsedValue.toAny(execId.returnType)
+                val (returnValue, valueClassId) = unparsedValue.toJsAny(execId.returnType)
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val thisInstance = when {
                     execId.isStatic -> null
