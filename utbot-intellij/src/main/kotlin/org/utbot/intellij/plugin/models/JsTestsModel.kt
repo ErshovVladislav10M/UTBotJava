@@ -13,7 +13,6 @@ class JsTestsModel(
     testModule: Module,
     val fileMethods: Set<JSMemberInfo>,
     var selectedMethods: Set<JSMemberInfo>,
-    val containingPsiFile: PsiFile? = null
 ) : BaseTestsModel(
     project,
     srcModule,

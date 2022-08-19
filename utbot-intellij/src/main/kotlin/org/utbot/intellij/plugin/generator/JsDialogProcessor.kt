@@ -67,7 +67,6 @@ object JsDialogProcessor {
                 testModule,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
-                containingPsiFile = containingPsiFile
             ).apply {
                 containingFilePath = filePath
             }
