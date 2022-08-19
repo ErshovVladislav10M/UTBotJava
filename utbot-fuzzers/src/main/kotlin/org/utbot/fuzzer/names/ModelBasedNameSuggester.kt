@@ -100,6 +100,7 @@ class ModelBasedNameSuggester(
                     m is UtPrimitiveModel && m.classId != voidClassId -> "-> return " + m.value
                     m is UtNullModel || m is JsNullModel -> "-> return null"
                     m is JsPrimitiveModel -> "-> return " + m.value
+                    m is JsUndefinedModel -> "-> return undefined"
                     else -> null
                 }
             }
