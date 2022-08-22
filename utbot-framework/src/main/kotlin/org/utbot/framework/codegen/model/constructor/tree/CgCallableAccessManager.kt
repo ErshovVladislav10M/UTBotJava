@@ -189,14 +189,14 @@ internal class CgCallableAccessManagerImpl(val context: CgContext) : CgCallableA
 
         with(outerMostTestClass) {
             return when (this@findExceptionTypes) {
-                getEnumConstantByNameMethodId -> setOf(IllegalAccessException::class.id)
+                getEnumConstantByNameMethodId -> setOf(java.lang.IllegalAccessException::class.id)
                 getStaticFieldValueMethodId,
+                setStaticFieldMethodId -> setOf(java.lang.IllegalAccessException::class.id, java.lang.NoSuchFieldException::class.id)
                 getFieldValueMethodId,
-                setStaticFieldMethodId,
-                setFieldMethodId -> setOf(IllegalAccessException::class.id, NoSuchFieldException::class.id)
+                setFieldMethodId -> setOf(java.lang.ClassNotFoundException::class.id, java.lang.IllegalAccessException::class.id, java.lang.NoSuchFieldException::class.id)
                 createInstanceMethodId -> setOf(Exception::class.id)
-                getUnsafeInstanceMethodId -> setOf(ClassNotFoundException::class.id, NoSuchFieldException::class.id, IllegalAccessException::class.id)
-                createArrayMethodId -> setOf(ClassNotFoundException::class.id)
+                getUnsafeInstanceMethodId -> setOf(java.lang.ClassNotFoundException::class.id, java.lang.NoSuchFieldException::class.id, java.lang.IllegalAccessException::class.id)
+                createArrayMethodId -> setOf(java.lang.ClassNotFoundException::class.id)
                 deepEqualsMethodId,
                 arraysDeepEqualsMethodId,
                 iterablesDeepEqualsMethodId,
