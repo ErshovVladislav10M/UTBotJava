@@ -16,8 +16,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.util.projectStructure.module
-import org.utbot.framework.plugin.api.JsClassId
-import org.utbot.framework.plugin.api.util.id
 import org.utbot.intellij.plugin.generator.JsDialogProcessor
 
 object JsActionMethods {
@@ -31,12 +29,11 @@ object JsActionMethods {
         val module: Module,
         val containingFilePath: String,
         val editor: Editor,
-        val containingPsiFile: PsiFile
     )
 
     fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val (methods, focusedMethod, module, containingFilePath, editor, containingPsiFile) = getPsiTargets(e) ?: return
+        val (methods, focusedMethod, module, containingFilePath, editor) = getPsiTargets(e) ?: return
         JsDialogProcessor.createDialogAndGenerateTests(
             project,
             module,
@@ -44,7 +41,6 @@ object JsActionMethods {
             focusedMethod,
             containingFilePath,
             editor,
-            containingPsiFile,
         )
     }
 
@@ -72,7 +68,6 @@ object JsActionMethods {
                 module,
                 virtualFile,
                 editor,
-                file
             )
         }
         val memberInfos = generateMemberInfo(e.project!!, file.statements.filterIsInstance<JSFunction>())
@@ -85,7 +80,6 @@ object JsActionMethods {
             module,
             virtualFile,
             editor,
-            file
         )
     }
 

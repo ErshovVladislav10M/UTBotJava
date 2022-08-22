@@ -10,7 +10,7 @@ import org.utbot.framework.plugin.api.util.*
 import org.utbot.fuzzer.FuzzedConcreteValue
 import org.utbot.fuzzer.FuzzedOp
 
-class JsFuzzerAstVisitor() : NodeVisitor<LexicalContext>(LexicalContext()) {
+class JsFuzzerAstVisitor : NodeVisitor<LexicalContext>(LexicalContext()) {
     private var lastFuzzedOpGlobal = FuzzedOp.NONE
 
     val fuzzedConcreteValues = mutableSetOf<FuzzedConcreteValue>()

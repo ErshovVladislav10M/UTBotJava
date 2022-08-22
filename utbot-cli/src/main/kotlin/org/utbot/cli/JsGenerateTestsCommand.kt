@@ -52,9 +52,9 @@ class JsGenerateTestsCommand : CliktCommand(name = "generateJS", help = "Generat
                 sourceFilePath = sourceCodeFile,
                 parentClassName = targetClass,
                 outputFilePath = output,
+                exportsManager = ::manageExports
             )
             val testCode = testGenerator.run()
-            manageExports(testGenerator.exports)
 
             if (printToStdOut) {
                 logger.info { testCode }

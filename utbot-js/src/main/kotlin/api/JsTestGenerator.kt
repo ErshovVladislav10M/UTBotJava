@@ -47,13 +47,12 @@ class JsTestGenerator(
     private val projectPath: String = sourceFilePath.replaceAfterLast(File.separator, ""),
     private val selectedMethods: List<String>? = null,
     private val parentClassName: String? = null,
-    private val outputFilePath: String?
+    private val outputFilePath: String?,
+    private val exportsManager: (List<String>) -> Unit,
 ) {
 
-    private val _exports = mutableSetOf<String>()
+    private val exports = mutableSetOf<String>()
 
-    val exports
-        get() = _exports.toList()
 
     private lateinit var parsedFile: FunctionNode
 
@@ -63,14 +62,13 @@ class JsTestGenerator(
      * Returns String representation of generated tests.
      */
     fun run(): String {
-        val trimmedFileText = trimText(fileText)
-        parsedFile = runParser(trimmedFileText)
+        parsedFile = runParser(fileText)
         val context = ServiceContext(
             utbotDir = utbotDir,
             projectPath = projectPath,
             filePathToInference = sourceFilePath.replace("\\", "/"),
-            trimmedFileText = trimmedFileText,
             fileText = fileText,
+            trimmedFileText = fileText,
         )
         // TODO MINOR: do not create existing files
         val ternService = TernService(context)
@@ -80,7 +78,7 @@ class JsTestGenerator(
         val classNode = parentClassName?.let {
             JsParserUtils.searchForClassDecl(
                 parentClassName,
-                trimmedFileText
+                fileText
             )
         }
         val classId = classNode?.let {
@@ -93,7 +91,7 @@ class JsTestGenerator(
             getFunctionNode(
                 it,
                 parentClassName,
-                trimmedFileText
+                fileText
             )
         } ?: getMethodsToTest()
         if (methods.isEmpty()) throw IllegalArgumentException("No methods to test were found!")
@@ -105,7 +103,8 @@ class JsTestGenerator(
 
             val obligatoryExport = (classNode?.ident?.name ?: funcNode.ident.name).toString()
             val collectedExports = collectExports(execId)
-            _exports += (collectedExports + obligatoryExport)
+            exports += (collectedExports + obligatoryExport)
+            exportsManager(exports.toList())
             val fuzzerVisitor = JsFuzzerAstVisitor()
             funcNode.body.accept(fuzzerVisitor)
             val methodUnderTestDescription =
@@ -119,17 +118,22 @@ class JsTestGenerator(
                     .shuffled()
                     .take(500)
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
-            val idGenerator = SimpleIdGenerator()
-            fuzzedValues.indices.toList().parallelStream().forEach {
+            val importText =
+            PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)
+            fuzzedValues.indices.toList().forEach {
                 val scriptText =
                     makeStringForRunJs(
                         fuzzedValues[it],
                         execId,
                         classNode?.ident?.name,
-                        trimmedFileText
+                        importText
                     )
-                val id = idGenerator.asInt
-                val coverageService = CoverageService(context, scriptText, id.toLong())
+                val coverageService = CoverageService(
+                    context,
+                    scriptText,
+                    it,
+                    sourceFilePath.substringAfterLast(File.separator)
+                )
                 coveredBranchesArray[it] = coverageService.getCoveredLines()
             }
             val testsForGenerator = mutableListOf<UtExecution>()
@@ -140,10 +144,10 @@ class JsTestGenerator(
                 val param = fuzzedValues[paramIndex]
                 val utConstructor = JsUtModelConstructor()
                 val scriptText =
-                    makeStringForRunJs(param, execId, classNode?.ident?.name, trimmedFileText)
+                    makeStringForRunJs(param, execId, classNode?.ident?.name, importText)
                 val returnText = runJs(
                     scriptText,
-                    sourceFilePath.replaceAfterLast(File.separator, ""),
+                    projectPath,
                 )
                 val unparsedValue =
                     resultRegex.findAll(returnText).last().groups[1]?.value ?: throw IllegalStateException()
@@ -212,13 +216,6 @@ class JsTestGenerator(
         return codeGen.generateAsStringWithTestReport(testSets).generatedCode
     }
 
-    // TODO SEVERE: make a copy of a file so that it doesn't contain any global invocations besides generated one.
-    //  Also general trimming required, for example "export" keyword, etc.
-    private fun trimText(fileText: String): String {
-        val regex = Regex("module.exports = \\{.*}|export")
-        return fileText.replace(regex, "")
-    }
-
     private fun runParser(fileText: String): FunctionNode {
         val parser = Parser(
             ScriptEnvironment.builder().build(),
@@ -246,9 +243,9 @@ class JsTestGenerator(
     }
 
     private fun runJs(scriptText: String, workDir: String): String {
-        val tempFile = File("$workDir${File.separator}tempScriptUtbotJs.js")
-        tempFile.writeText(scriptText)
+        val tempFile = File("$workDir${File.separator}$utbotDir${File.separator}tempScriptUtbotJs.js")
         tempFile.createNewFile()
+        tempFile.writeText(scriptText)
         val (reader, _) = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)
         tempFile.delete()
         return reader.readText()
@@ -258,22 +255,20 @@ class JsTestGenerator(
         fuzzedValue: List<FuzzedValue>,
         method: JsMethodId,
         containingClass: TruffleString?,
-        fileText: String
+        importText: String,
     ): String {
         val callString = makeCallFunctionString(fuzzedValue, method, containingClass)
         val prefix = "Utbot result:"
         val temp = "console.log(`$prefix \"\${res}\"`)"
         val res = buildString {
-            append(fileText)
-            append("\n")
             append(
                 """
-                {
-                    let prefix = "$prefix"
-                    let res = $callString
-                    if (typeof res == "string") $temp
-                    else console.log(prefix, res)
-                }
+                const fileUnderTest = require("./$importText")
+                    
+                let prefix = "$prefix"
+                let res = fileUnderTest.$callString
+                if (typeof res == "string") $temp
+                else console.log(prefix, res)
             """.trimIndent()
             )
         }
@@ -296,7 +291,7 @@ class JsTestGenerator(
             // Explicit string wrap with "" is needed.
             if (value.model is UtAssembleModel) {
                 val model = value.model as UtAssembleModel
-                callString += "new ${model.classId.name}("
+                callString += "new fileUnderTest.${model.classId.name}("
                 (model.instantiationChain.first() as UtExecutableCallModel).params.forEach {
                     callString += when ((it as JsPrimitiveModel).value) {
                         is String -> "\"${(it).value}\","

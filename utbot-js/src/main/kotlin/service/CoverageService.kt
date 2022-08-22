@@ -8,49 +8,63 @@ import utils.JsCmdExec
 class CoverageService(
     private val context: ServiceContext,
     private val scriptText: String,
-    private val id: Long,
+    private val id: Int,
+    private val originalFileName: String
 ) {
 
     init {
         with(context) {
-            createTempScript("$projectPath/$utbotDir")
-            generateCoverageReport("$projectPath/$utbotDir", "temp$id.js")
+            createTempScript("$projectPath${File.separator}$utbotDir")
+            generateCoverageReport(projectPath, "$utbotDir${File.separator}temp$id.js")
         }
     }
 
     fun getCoveredLines(): Set<Int> {
         val jsonText = with(context) {
-            val file = File("$projectPath/$utbotDir/coverage$id/coverage-final.json")
+            val file = File("$projectPath${File.separator}$utbotDir${File.separator}coverage$id${File.separator}coverage-final.json")
             file.readText()
         }
-        removeTempFiles()
         val json = JSONObject(jsonText)
+        val neededKey = json.keySet().find { it.contains(originalFileName) }
+        try {
+            json.getJSONObject(neededKey)
+        } catch (t: Throwable) {
+            println("Json text: $jsonText")
+            throw t
+        }
         val coveredStatements = json
-            .getJSONObject(json.keys().next())
+            .getJSONObject(neededKey)
             .getJSONObject("s")
+//        removeTempFiles()
         return coveredStatements.keySet().mapNotNull {
-            if (coveredStatements.getInt(it) == 1) it.toInt() else null
+            if (coveredStatements.getInt(it) > 0) it.toInt() else null
         }.toSet()
     }
 
     private fun removeTempFiles() {
         with(context) {
-            FileUtils.deleteDirectory(File("$projectPath/$utbotDir/coverage$id"))
-            File("$projectPath/$utbotDir/temp$id.js").delete()
+            FileUtils.deleteDirectory(File("$projectPath${File.separator}$utbotDir${File.separator}coverage$id"))
+            File("$projectPath${File.separator}$utbotDir${File.separator}temp$id.js").delete()
         }
     }
 
     private fun generateCoverageReport(workingDir: String, filePath: String) {
-        File("$workingDir/coverage$id").mkdir()
-        JsCmdExec.runCommand(
-            "c8 --report-dir=\"./coverage$id\" --reporter=\"json\" node $filePath",
+        val dir = File("$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id")
+        dir.mkdir()
+        val (_, error) = JsCmdExec.runCommand(
+            "nyc --report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" --reporter=\"json\" node $filePath",
             workingDir,
             true,
         )
+        val errText = error.readText()
+        if (errText.isNotEmpty()) {
+            println(errText)
+            println("Also $id and ${dir.path}")
+        }
     }
 
     private fun createTempScript(dir: String) {
-        val file = File("$dir/temp$id.js")
+        val file = File("$dir${File.separator}temp$id.js")
         file.writeText(scriptText)
         file.createNewFile()
     }
