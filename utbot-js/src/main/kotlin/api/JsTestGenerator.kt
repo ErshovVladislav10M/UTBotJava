@@ -120,7 +120,7 @@ class JsTestGenerator(
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
             val importText =
             PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)
-            fuzzedValues.indices.toList().forEach {
+            fuzzedValues.indices.toList().parallelStream().forEach {
                 val scriptText =
                     makeStringForRunJs(
                         fuzzedValues[it],

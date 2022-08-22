@@ -26,16 +26,11 @@ class CoverageService(
         }
         val json = JSONObject(jsonText)
         val neededKey = json.keySet().find { it.contains(originalFileName) }
-        try {
             json.getJSONObject(neededKey)
-        } catch (t: Throwable) {
-            println("Json text: $jsonText")
-            throw t
-        }
         val coveredStatements = json
             .getJSONObject(neededKey)
             .getJSONObject("s")
-//        removeTempFiles()
+        removeTempFiles()
         return coveredStatements.keySet().mapNotNull {
             if (coveredStatements.getInt(it) > 0) it.toInt() else null
         }.toSet()
@@ -52,7 +47,7 @@ class CoverageService(
         val dir = File("$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id")
         dir.mkdir()
         val (_, error) = JsCmdExec.runCommand(
-            "nyc --report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" --reporter=\"json\" node $filePath",
+            "nyc --report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" --reporter=\"json\" --temp-dir=\"${dir.absolutePath}${File.separator}cache$id\" node $filePath",
             workingDir,
             true,
         )
