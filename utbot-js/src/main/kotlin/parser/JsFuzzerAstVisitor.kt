@@ -1,6 +1,7 @@
 package parser
 
 import com.oracle.js.parser.ir.BinaryNode
+import com.oracle.js.parser.ir.CaseNode
 import com.oracle.js.parser.ir.LexicalContext
 import com.oracle.js.parser.ir.LiteralNode
 import com.oracle.js.parser.ir.Node
@@ -14,10 +15,14 @@ class JsFuzzerAstVisitor : NodeVisitor<LexicalContext>(LexicalContext()) {
     private var lastFuzzedOpGlobal = FuzzedOp.NONE
 
     val fuzzedConcreteValues = mutableSetOf<FuzzedConcreteValue>()
-
+    override fun enterCaseNode(caseNode: CaseNode?): Boolean {
+        caseNode?.test?.let {
+            validateNode(it)
+        }
+        return true
+    }
     override fun enterBinaryNode(binaryNode: BinaryNode?): Boolean {
         binaryNode?.let { binNode ->
-
             val compOp = """>=|<=|>|<|==|!=""".toRegex()
             val curOp = compOp.find(binNode.toString())?.value
             val currentFuzzedOp = FuzzedOp.values().find { curOp == it.sign } ?: FuzzedOp.NONE
