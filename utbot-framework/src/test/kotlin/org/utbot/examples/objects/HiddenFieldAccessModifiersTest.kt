@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 internal class HiddenFieldAccessModifiersTest : UtValueTestCaseChecker(testClass = HiddenFieldAccessModifiersExample::class) {
     @Test
     fun testCheckSuperFieldEqualsOne() {
-        withEnabledTestingCodeGeneration(testCodeGeneration = false) {
+        withEnabledTestingCodeGeneration(testCodeGeneration = true) {
             check(
                 HiddenFieldAccessModifiersExample::checkSuperFieldEqualsOne,
                 eq(3),

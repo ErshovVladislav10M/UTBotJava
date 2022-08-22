@@ -21,7 +21,7 @@ internal class HiddenFieldExampleTest : UtValueTestCaseChecker(testClass = Hidde
 
     @Test
     fun testCheckSuccField() {
-        withEnabledTestingCodeGeneration(testCodeGeneration = false) {
+        withEnabledTestingCodeGeneration(testCodeGeneration = true) {
             check(
                 HiddenFieldExample::checkSuccField,
                 eq(5),
