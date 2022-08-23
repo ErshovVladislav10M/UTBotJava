@@ -108,6 +108,7 @@ test("${context.filePathToInference}")
                 "node ${projectPath}${File.separator}$utbotDir${File.separator}ternScript.js",
                 "$projectPath${File.separator}$utbotDir${File.separator}",
                 true,
+                15_000
             )
             val text = reader.readText().replaceAfterLast("}", "")
             json = JSONObject(text)

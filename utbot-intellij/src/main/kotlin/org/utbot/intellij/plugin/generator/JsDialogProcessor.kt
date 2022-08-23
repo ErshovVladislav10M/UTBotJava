@@ -65,6 +65,7 @@ object JsDialogProcessor {
                 testModule,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
+                1000000
             ).apply {
                 containingFilePath = filePath
             }
@@ -88,7 +89,7 @@ object JsDialogProcessor {
                 }, 0, 500, TimeUnit.MILLISECONDS)
 
                 runIgnoringCancellationException {
-                    runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
+                    runBlockingWithCancellationPredicate({ indicator.isCanceled || System.currentTimeMillis() - startTime > 5000 }) {
                         val testDir = PsiDirectoryFactory.getInstance(project).createDirectory(
                             model.testSourceRoot!!
                         )
