@@ -25,6 +25,7 @@ import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.framework.plugin.api.UtExplicitlyThrownException
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.util.isJsBasic
+import org.utbot.framework.plugin.api.util.jsErrorClassId
 import org.utbot.framework.plugin.api.util.voidClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
@@ -120,7 +121,7 @@ class JsTestGenerator(
                     .take(500)
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
             val importText =
-            PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)
+                PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)
             val basicCoverageService = CoverageService(
                 context,
                 context.trimmedFileText,
@@ -151,7 +152,7 @@ class JsTestGenerator(
             }
             val testsForGenerator = mutableListOf<UtExecution>()
             val resultRegex = Regex("Utbot result: (.*)")
-            val errorResultRegex = Regex("\n(Error: .*)")
+            val errorResultRegex = Regex(".*(Error: .*)")
 
             analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
                 val param = fuzzedValues[paramIndex]
@@ -200,12 +201,15 @@ class JsTestGenerator(
                     }
                 }
                 val initEnv = EnvironmentModels(thisInstance, param.map { it.model }, mapOf())
+                val utExecResult = when (result.classId) {
+                    jsErrorClassId -> UtExplicitlyThrownException(Throwable(returnValue.toString()), false)
+                    else -> UtExecutionSuccess(result)
+                }
                 testsForGenerator.add(
                     UtExecution(
                         stateBefore = initEnv,
                         stateAfter = initEnv,
-                        // Result should be UtExecutionFailure for throw statements
-                        result = UtExplicitlyThrownException(Throwable(returnValue.toString()), false),
+                        result = utExecResult,
                         instrumentation = emptyList(),
                         path = mutableListOf(),
                         fullPath = emptyList(),
@@ -224,7 +228,10 @@ class JsTestGenerator(
             paramNames[execId] = funcNode.parameters.map { it.name.toString() }
         }
         val importPrefix = outputFilePath?.let {
-            PathResolver.getRelativePath(it.substringBeforeLast(File.separator), sourceFilePath.substringBeforeLast(File.separator))
+            PathResolver.getRelativePath(
+                it.substringBeforeLast(File.separator),
+                sourceFilePath.substringBeforeLast(File.separator)
+            )
         } ?: ""
         val codeGen = JsCodeGenerator(
             classId,
@@ -369,6 +376,6 @@ class JsTestGenerator(
         val classNode = visitor.targetClassNode
         return classNode.classElements.filter {
             it.value is FunctionNode
-        }.map {it.value as FunctionNode}
+        }.map { it.value as FunctionNode }
     }
 }
