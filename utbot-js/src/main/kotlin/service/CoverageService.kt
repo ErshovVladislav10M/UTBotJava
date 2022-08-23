@@ -1,6 +1,7 @@
 package service
 
 import java.io.File
+import java.util.*
 import org.apache.commons.io.FileUtils
 import org.json.JSONObject
 import utils.JsCmdExec
@@ -9,17 +10,23 @@ class CoverageService(
     private val context: ServiceContext,
     private val scriptText: String,
     private val id: Int,
-    private val originalFileName: String
+    private val originalFileName: String,
+    private val newFileName: String,
+    private val basicCoverage: List<Int> = emptyList(),
 ) {
 
     init {
         with(context) {
-            createTempScript("$projectPath${File.separator}$utbotDir")
-            generateCoverageReport(projectPath, "$utbotDir${File.separator}temp$id.js")
+            if (originalFileName == newFileName) {
+                generateCoverageReport(projectPath, filePathToInference)
+            } else {
+                createTempScript("$projectPath${File.separator}$utbotDir")
+                generateCoverageReport(projectPath, "$utbotDir${File.separator}$newFileName$id.js")
+            }
         }
     }
 
-    fun getCoveredLines(): Set<Int> {
+    fun getCoveredLines(): List<Int> {
         val jsonText = with(context) {
             val file = File("$projectPath${File.separator}$utbotDir${File.separator}coverage$id${File.separator}coverage-final.json")
             file.readText()
@@ -30,16 +37,20 @@ class CoverageService(
         val coveredStatements = json
             .getJSONObject(neededKey)
             .getJSONObject("s")
-        removeTempFiles()
-        return coveredStatements.keySet().mapNotNull {
-            if (coveredStatements.getInt(it) > 0) it.toInt() else null
-        }.toSet()
+        val result = coveredStatements.keySet().flatMap {
+            val count = coveredStatements.getInt(it)
+            Collections.nCopies(count, it.toInt())
+        }.toMutableList()
+        basicCoverage.forEach {
+            result.remove(it)
+        }
+        return result
     }
 
-    private fun removeTempFiles() {
+    fun removeTempFiles() {
         with(context) {
             FileUtils.deleteDirectory(File("$projectPath${File.separator}$utbotDir${File.separator}coverage$id"))
-            File("$projectPath${File.separator}$utbotDir${File.separator}temp$id.js").delete()
+            File("$projectPath${File.separator}$utbotDir${File.separator}$newFileName$id.js").delete()
         }
     }
 
@@ -59,7 +70,7 @@ class CoverageService(
     }
 
     private fun createTempScript(dir: String) {
-        val file = File("$dir${File.separator}temp$id.js")
+        val file = File("$dir${File.separator}$newFileName$id.js")
         file.writeText(scriptText)
         file.createNewFile()
     }

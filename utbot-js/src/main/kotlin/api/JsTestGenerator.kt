@@ -26,7 +26,6 @@ import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedValue
-import org.utbot.fuzzer.SimpleIdGenerator
 import parser.JsClassAstVisitor
 import parser.JsFunctionAstVisitor
 import parser.JsFuzzerAstVisitor
@@ -120,6 +119,15 @@ class JsTestGenerator(
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
             val importText =
             PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)
+            val basicCoverageService = CoverageService(
+                context,
+                context.trimmedFileText,
+                1024,
+                sourceFilePath.substringAfterLast(File.separator),
+                sourceFilePath.substringAfterLast(File.separator)
+            )
+            val basicCoverage = basicCoverageService.getCoveredLines()
+            basicCoverageService.removeTempFiles()
             fuzzedValues.indices.toList().parallelStream().forEach {
                 val scriptText =
                     makeStringForRunJs(
@@ -132,9 +140,12 @@ class JsTestGenerator(
                     context,
                     scriptText,
                     it,
-                    sourceFilePath.substringAfterLast(File.separator)
+                    sourceFilePath.substringAfterLast(File.separator),
+                    "temp",
+                    basicCoverage
                 )
-                coveredBranchesArray[it] = coverageService.getCoveredLines()
+                coveredBranchesArray[it] = coverageService.getCoveredLines().toSet()
+                coverageService.removeTempFiles()
             }
             val testsForGenerator = mutableListOf<UtExecution>()
             val resultRegex = Regex("Utbot result: (.*)")
