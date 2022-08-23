@@ -9,29 +9,22 @@ import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.newvfs.impl.FakeVirtualFile
-import com.intellij.ui.ContextHelpLabel
-import com.intellij.ui.JBIntSpinner
-import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.Panel
-import com.intellij.ui.layout.Cell
 import com.intellij.ui.layout.panel
 import com.intellij.util.ui.JBUI
+import java.awt.BorderLayout
+import java.io.File
+import javax.swing.DefaultComboBoxModel
+import javax.swing.JComponent
+import org.jetbrains.kotlin.idea.core.util.toVirtualFile
 import org.utbot.framework.codegen.Mocha
 import org.utbot.framework.codegen.TestFramework
 import org.utbot.framework.plugin.api.CodeGenerationSettingItem
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.components.TestFolderComboWithBrowseButton
-import java.awt.BorderLayout
-import java.io.File
-import java.util.concurrent.TimeUnit
-import javax.swing.DefaultComboBoxModel
-import javax.swing.JComponent
-import org.jetbrains.kotlin.idea.core.util.toVirtualFile
-import org.utbot.framework.UtSettings
 import utils.JsCmdExec
 import kotlin.concurrent.thread
 
-private const val MINIMUM_TIMEOUT_VALUE_IN_SECONDS = 1
 class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
     private val items = model.fileMethods
@@ -43,13 +36,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
     private val testSourceFolderField = TestFolderComboWithBrowseButton(model)
     private val testFrameworks: ComboBox<TestFramework> = ComboBox(DefaultComboBoxModel(arrayOf(Mocha)))
-    private val timeoutSpinner =
-        JBIntSpinner(
-            TimeUnit.MILLISECONDS.toSeconds(UtSettings.utBotGenerationTimeoutInMillis).toInt(),
-            MINIMUM_TIMEOUT_VALUE_IN_SECONDS,
-            Int.MAX_VALUE,
-            MINIMUM_TIMEOUT_VALUE_IN_SECONDS
-        )
+
     private var initTestFrameworkPresenceThread: Thread
 
     private lateinit var panel: DialogPanel
@@ -87,28 +74,15 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
             row {
                 scrollPane(functionsTable)
             }
-            row("Timeout for class:") {
-                panelWithHelpTooltip("The execution timeout") {
-                    component(timeoutSpinner)
-                    component(JBLabel("sec"))
-                }
-
-            }
         }
         updateMembersTable()
         return panel
     }
 
-    private inline fun Cell.panelWithHelpTooltip(tooltipText: String?, crossinline init: Cell.() -> Unit): Cell {
-        init()
-        tooltipText?.let { component(ContextHelpLabel.create(it)) }
-        return this
-    }
     override fun doOKAction() {
         val selected = functionsTable.selectedMemberInfos.toSet()
         model.selectedMethods = if (selected.any()) selected else emptySet()
         model.testFramework = testFrameworks.item
-        model.timeout = TimeUnit.SECONDS.toMillis(timeoutSpinner.number.toLong())
         configureTestFrameworkIfRequired()
         super.doOKAction()
     }
@@ -130,7 +104,8 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         val selectedTestFramework = testFrameworks.item
         selectedTestFramework.isInstalled = true
         // TODO SEVERE: move version to TestFramework. Here is a hardcode for mocha
-        JsCmdExec.runCommand("npm install -l ${selectedTestFramework.displayName.toLowerCase()}@8.0.0",
+        JsCmdExec.runCommand(
+            "npm install -l ${selectedTestFramework.displayName.toLowerCase()}@8.0.0",
             model.project.basePath!!
         )
     }
