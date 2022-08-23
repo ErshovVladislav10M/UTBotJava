@@ -20,7 +20,6 @@ import org.utbot.framework.plugin.api.JsPrimitiveModel
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtExecution
-import org.utbot.framework.plugin.api.UtExecutionFailure
 import org.utbot.framework.plugin.api.UtExecutionSuccess
 import org.utbot.framework.plugin.api.UtExplicitlyThrownException
 import org.utbot.framework.plugin.api.UtStatementModel
@@ -163,8 +162,13 @@ class JsTestGenerator(
                     scriptText,
                     projectPath,
                 )
-                val unparsedValue =
-                    (resultRegex.find(returnText) ?: errorResultRegex.find(returnText))?.groups?.get(1)?.value ?: throw IllegalStateException()
+                val unparsedValueSeq = resultRegex.findAll(returnText)
+                val errorSeq = errorResultRegex.findAll(returnText)
+                val unparsedValue = if (unparsedValueSeq.any()) {
+                    unparsedValueSeq.last().groups[1]?.value ?: throw IllegalStateException()
+                } else {
+                    errorSeq.last().groups[1]?.value ?: throw IllegalStateException()
+                }
                 val (returnValue, valueClassId) = unparsedValue.toJsAny(execId.returnType)
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val thisInstance = when {
