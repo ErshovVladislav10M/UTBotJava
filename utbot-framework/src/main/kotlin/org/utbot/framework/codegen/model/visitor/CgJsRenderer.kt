@@ -33,7 +33,6 @@ import org.utbot.framework.codegen.model.tree.CgNotNullAssertion
 import org.utbot.framework.codegen.model.tree.CgParameterDeclaration
 import org.utbot.framework.codegen.model.tree.CgParameterizedTestDataProviderMethod
 import org.utbot.framework.codegen.model.tree.CgSpread
-import org.utbot.framework.codegen.model.tree.CgStatement
 import org.utbot.framework.codegen.model.tree.CgStaticsRegion
 import org.utbot.framework.codegen.model.tree.CgSwitchCase
 import org.utbot.framework.codegen.model.tree.CgSwitchCaseLabel
@@ -43,12 +42,10 @@ import org.utbot.framework.codegen.model.tree.CgTestMethod
 import org.utbot.framework.codegen.model.tree.CgThrowStatement
 import org.utbot.framework.codegen.model.tree.CgTypeCast
 import org.utbot.framework.codegen.model.tree.CgVariable
-import org.utbot.framework.codegen.model.util.CgExceptionHandler
 import org.utbot.framework.codegen.model.util.CgPrinter
 import org.utbot.framework.codegen.model.util.CgPrinterImpl
 import org.utbot.framework.plugin.api.BuiltinMethodId
 import org.utbot.framework.plugin.api.CodegenLanguage
-import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.TypeParameters
 
 internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterImpl()) : CgAbstractRenderer(context, printer) {
@@ -316,7 +313,16 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         }
         print(element.executableId.name.escapeNamePossibleKeyword())
         renderTypeParameters(element.typeParameters)
-        renderExecutableCallArguments(element)
+        if (element.type.name == "error") {
+            print("(")
+            element.arguments[0].accept(this@CgJsRenderer)
+            print(", ")
+            print("Error, ")
+            element.arguments[2].accept(this@CgJsRenderer)
+            print(")")
+        } else {
+            renderExecutableCallArguments(element)
+        }
     }
 
     //TODO MINOR: check
@@ -361,15 +367,8 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
 
     override fun renderExecutableCallArguments(executableCall: CgExecutableCall) {
         print("(")
-        val lastArgument = executableCall.arguments.lastOrNull()
-        if (lastArgument != null && lastArgument is CgAnonymousFunction) {
-            executableCall.arguments.dropLast(1).renderSeparated()
-            print(") ")
-            executableCall.arguments.last().accept(this)
-        } else {
-            executableCall.arguments.renderSeparated()
-            print(")")
-        }
+        executableCall.arguments.renderSeparated()
+        print(")")
     }
 
     //TODO SEVERE: check
