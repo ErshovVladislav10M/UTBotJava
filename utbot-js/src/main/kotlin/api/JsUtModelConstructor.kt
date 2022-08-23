@@ -11,8 +11,12 @@ import org.utbot.framework.plugin.api.JsUndefinedModel
 import org.utbot.framework.plugin.api.JsUtModel
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtExecutableCallModel
+import org.utbot.framework.plugin.api.UtExecutionFailure
+import org.utbot.framework.plugin.api.UtExecutionResult
 import org.utbot.framework.plugin.api.UtModel
+import org.utbot.framework.plugin.api.UtResult
 import org.utbot.framework.plugin.api.UtStatementModel
+import org.utbot.framework.plugin.api.util.jsErrorClassId
 import org.utbot.framework.plugin.api.util.jsUndefinedClassId
 
 class JsUtModelConstructor: UtModelConstructorInterface {
@@ -23,6 +27,7 @@ class JsUtModelConstructor: UtModelConstructorInterface {
         val classId = classId as JsClassId
         when (classId) {
             jsUndefinedClassId -> return JsUndefinedModel(classId)
+            jsErrorClassId -> return UtModel(jsErrorClassId)
         }
         return when (value) {
             null -> JsNullModel(classId)

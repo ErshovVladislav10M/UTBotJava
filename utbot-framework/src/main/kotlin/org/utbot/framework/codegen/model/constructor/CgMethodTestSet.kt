@@ -34,10 +34,11 @@ data class CgMethodTestSet private constructor(
     constructor(
         executableId: ExecutableId,
         execs: List<UtExecution> = emptyList(),
+        errors: Map<String, Int> = emptyMap()
     ) : this(
         executableId,
         null,
-        emptyMap(),
+        errors,
         listOf(null to execs.indices)
     ) {
         executions = execs
@@ -48,7 +49,7 @@ data class CgMethodTestSet private constructor(
      * Splits [CgMethodTestSet] into separate test sets having
      * unique result model [ClassId] in each subset.
      */
-    fun splitExecutionsByResult() : List<CgMethodTestSet> {
+    fun splitExecutionsByResult(): List<CgMethodTestSet> {
         val successfulExecutions = executions.filter { it.result is UtExecutionSuccess }
         val executionsByResult: Map<ClassId, List<UtExecution>> =
             if (successfulExecutions.isNotEmpty()) {
@@ -57,7 +58,7 @@ data class CgMethodTestSet private constructor(
                 mapOf(objectClassId to executions)
             }
 
-        return executionsByResult.map{ (_, executions) -> substituteExecutions(executions) }
+        return executionsByResult.map { (_, executions) -> substituteExecutions(executions) }
     }
 
     /**

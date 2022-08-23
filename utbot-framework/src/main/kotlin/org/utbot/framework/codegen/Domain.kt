@@ -167,6 +167,8 @@ sealed class TestFramework(
     val jsAssertEquals by lazy { BuiltinMethodId(JsClassId("assert.deepEqual"), "assert.deepEqual", jsUndefinedClassId, listOf(
         jsUndefinedClassId, jsUndefinedClassId)) }
 
+    val jsAssertThrows by lazy { BuiltinMethodId(JsClassId("assert.throws"), "assert.throws", jsErrorClassId, listOf(jsUndefinedClassId, jsUndefinedClassId, jsUndefinedClassId))}
+
     val assertEquals by lazy { assertionId("assertEquals", objectClassId, objectClassId) }
 
     val assertFloatEquals by lazy { assertionId("assertEquals", floatClassId, floatClassId, floatClassId) }

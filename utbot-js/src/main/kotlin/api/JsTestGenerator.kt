@@ -20,7 +20,9 @@ import org.utbot.framework.plugin.api.JsPrimitiveModel
 import org.utbot.framework.plugin.api.UtAssembleModel
 import org.utbot.framework.plugin.api.UtExecutableCallModel
 import org.utbot.framework.plugin.api.UtExecution
+import org.utbot.framework.plugin.api.UtExecutionFailure
 import org.utbot.framework.plugin.api.UtExecutionSuccess
+import org.utbot.framework.plugin.api.UtExplicitlyThrownException
 import org.utbot.framework.plugin.api.UtStatementModel
 import org.utbot.framework.plugin.api.util.isJsBasic
 import org.utbot.framework.plugin.api.util.voidClassId
@@ -149,7 +151,7 @@ class JsTestGenerator(
             }
             val testsForGenerator = mutableListOf<UtExecution>()
             val resultRegex = Regex("Utbot result: (.*)")
-
+            val errorResultRegex = Regex("\n(Error: .*)")
 
             analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
                 val param = fuzzedValues[paramIndex]
@@ -161,7 +163,7 @@ class JsTestGenerator(
                     projectPath,
                 )
                 val unparsedValue =
-                    resultRegex.findAll(returnText).last().groups[1]?.value ?: throw IllegalStateException()
+                    (resultRegex.find(returnText) ?: errorResultRegex.find(returnText))?.groups?.get(1)?.value ?: throw IllegalStateException()
                 val (returnValue, valueClassId) = unparsedValue.toJsAny(execId.returnType)
                 val result = utConstructor.construct(returnValue, valueClassId)
                 val thisInstance = when {
@@ -202,6 +204,7 @@ class JsTestGenerator(
                     UtExecution(
                         stateBefore = initEnv,
                         stateAfter = initEnv,
+                        // Result should be UtExecutionFailure for throw statements
                         result = UtExecutionSuccess(result),
                         instrumentation = emptyList(),
                         path = mutableListOf(),
@@ -209,9 +212,13 @@ class JsTestGenerator(
                     )
                 )
             }
+            // TODO: Collect unexpectedFail in RunTime
+            val errorsForGenerator: Map<String, Int> = emptyMap()
+
             val testSet = CgMethodTestSet(
                 execId,
-                testsForGenerator
+                testsForGenerator,
+                errorsForGenerator
             )
             testSets += testSet
             paramNames[execId] = funcNode.parameters.map { it.name.toString() }
@@ -257,9 +264,9 @@ class JsTestGenerator(
         val tempFile = File("$workDir${File.separator}$utbotDir${File.separator}tempScriptUtbotJs.js")
         tempFile.createNewFile()
         tempFile.writeText(scriptText)
-        val (reader, _) = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)
+        val (reader, errorReader) = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)
         tempFile.delete()
-        return reader.readText()
+        return errorReader.readText().ifEmpty { reader.readText() }
     }
 
     private fun makeStringForRunJs(

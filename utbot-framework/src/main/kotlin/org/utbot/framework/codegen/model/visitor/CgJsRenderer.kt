@@ -33,14 +33,17 @@ import org.utbot.framework.codegen.model.tree.CgNotNullAssertion
 import org.utbot.framework.codegen.model.tree.CgParameterDeclaration
 import org.utbot.framework.codegen.model.tree.CgParameterizedTestDataProviderMethod
 import org.utbot.framework.codegen.model.tree.CgSpread
+import org.utbot.framework.codegen.model.tree.CgStatement
 import org.utbot.framework.codegen.model.tree.CgStaticsRegion
 import org.utbot.framework.codegen.model.tree.CgSwitchCase
 import org.utbot.framework.codegen.model.tree.CgSwitchCaseLabel
 import org.utbot.framework.codegen.model.tree.CgTestClass
 import org.utbot.framework.codegen.model.tree.CgTestClassFile
 import org.utbot.framework.codegen.model.tree.CgTestMethod
+import org.utbot.framework.codegen.model.tree.CgThrowStatement
 import org.utbot.framework.codegen.model.tree.CgTypeCast
 import org.utbot.framework.codegen.model.tree.CgVariable
+import org.utbot.framework.codegen.model.util.CgExceptionHandler
 import org.utbot.framework.codegen.model.util.CgPrinter
 import org.utbot.framework.codegen.model.util.CgPrinterImpl
 import org.utbot.framework.plugin.api.BuiltinMethodId
@@ -272,6 +275,15 @@ internal class CgJsRenderer(context: CgContext, printer: CgPrinter = CgPrinterIm
         if (element is CgTestMethod || element is CgErrorTestMethod) {
             println(")")
         }
+    }
+
+    override fun visit(element: CgErrorTestMethod) {
+        renderMethodSignature(element)
+        visit(element as CgMethod)
+    }
+
+    override fun visit(element: CgThrowStatement) {
+        // TODO: Should we render throw statement right here?
     }
 
     override fun renderMethodSignature(element: CgParameterizedTestDataProviderMethod) {

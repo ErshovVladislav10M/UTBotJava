@@ -8,6 +8,7 @@ val jsNumberClassId = JsClassId("number")
 val jsBooleanClassId = JsClassId("bool")
 val jsDoubleClassId = JsClassId("double")
 val jsStringClassId = JsClassId("string")
+val jsErrorClassId = JsClassId("error")
 
 
 val jsPrimitives = setOf(

@@ -41,7 +41,9 @@ import org.utbot.framework.plugin.api.util.intArrayClassId
 import org.utbot.framework.plugin.api.util.longArrayClassId
 import org.utbot.framework.plugin.api.util.shortArrayClassId
 import java.util.concurrent.TimeUnit
+import org.utbot.framework.codegen.Junit4.jsAssertThrows
 import org.utbot.framework.codegen.Mocha
+import org.utbot.framework.plugin.api.util.jsErrorClassId
 
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class TestFrameworkManager(val context: CgContext)
@@ -309,6 +311,9 @@ internal class TestNgManager(context: CgContext) : TestFrameworkManager(context)
 internal class MochaManager(context: CgContext): TestFrameworkManager(context) {
     override fun expectException(exception: ClassId, block: () -> Unit) {
         require(testFramework is Mocha) { "According to settings, Mocha.js was expected, but got: $testFramework" }
+        // TODO: AssertThrows support
+        +assertions[jsAssertThrows](exception)
+        // No context error below
         block()
     }
 
