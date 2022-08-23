@@ -132,10 +132,14 @@ test("${context.filePathToInference}")
             val paramList = value.split(',')
             paramList.map { param ->
                 val paramReg = Regex(":(.*)")
-                makeClassId(
-                    paramReg.find(param)?.groups?.get(1)?.value
-                        ?: throw IllegalStateException()
-                )
+                try {
+                    makeClassId(
+                        paramReg.find(param)?.groups?.get(1)?.value
+                            ?: throw IllegalStateException()
+                    )
+                } catch (t: Throwable) {
+                    jsUndefinedClassId
+                }
             }
         } ?: emptyList()
     }
@@ -144,7 +148,11 @@ test("${context.filePathToInference}")
         val returnTypeRegex = Regex("->(.*)")
         return returnTypeRegex.find(line)?.groups?.get(1)?.let { matchResult ->
             val value = matchResult.value
-            makeClassId(value)
+            try {
+                makeClassId(value)
+            } catch (t: Throwable){
+                jsUndefinedClassId
+            }
         } ?: jsUndefinedClassId
     }
 
@@ -172,6 +180,13 @@ test("${context.filePathToInference}")
         val classId = when {
             // TODO SEVERE: I don't know why Tern sometimes says that type is "0"
             name == "?" || name == "0" -> jsUndefinedClassId
+            Regex("\\[(.*)]").matches(name) -> {
+                val arrType = Regex("\\[(.*)]").find(name)?.groups?.get(1)?.value ?: throw IllegalStateException()
+                JsClassId(
+                    "array",
+                    elementClassId = makeClassId(arrType)
+                )
+            }
             name.contains('|') -> JsMultipleClassId(name.toLowerCase())
             else -> JsClassId(name.toLowerCase())
         }

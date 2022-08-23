@@ -148,6 +148,8 @@ import org.utbot.summary.SummarySentenceConstants.TAB
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.lang.reflect.InvocationTargetException
 import org.utbot.framework.codegen.Mocha
+import org.utbot.framework.plugin.api.JsClassId
+import org.utbot.framework.plugin.api.util.description
 
 private const val DEEP_EQUALS_MAX_DEPTH = 5 // TODO move it to plugin settings?
 
@@ -322,8 +324,15 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
         }
 
         if (shouldTestPassWithException(execution, exception)) {
-            testFrameworkManager.expectException(exception::class.id) {
-                methodInvocationBlock()
+            if (codegenLanguage != CodegenLanguage.JS) {
+                testFrameworkManager.expectException(exception::class.id) {
+                    methodInvocationBlock()
+                }
+            } else {
+                val exceptionClassId = JsClassId(exception.description)
+                testFrameworkManager.expectException(exceptionClassId) {
+                    methodInvocationBlock()
+                }
             }
             methodType = SUCCESSFUL
 

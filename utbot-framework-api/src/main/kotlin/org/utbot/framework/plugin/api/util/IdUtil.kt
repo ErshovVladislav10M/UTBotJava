@@ -271,7 +271,7 @@ val ClassId.isPrimitive: Boolean
     get() = this in primitives
 
 val ClassId.isPrimitiveArray: Boolean
-    get() = elementClassId != null && elementClassId.isPrimitive
+    get() = elementClassId != null && elementClassId!!.isPrimitive
 
 val ClassId.isPrimitiveWrapper: Boolean
     get() = this in primitiveWrappers

@@ -311,10 +311,8 @@ internal class TestNgManager(context: CgContext) : TestFrameworkManager(context)
 internal class MochaManager(context: CgContext): TestFrameworkManager(context) {
     override fun expectException(exception: ClassId, block: () -> Unit) {
         require(testFramework is Mocha) { "According to settings, Mocha.js was expected, but got: $testFramework" }
-        // TODO: AssertThrows support
-        +assertions[jsAssertThrows](exception)
-        // No context error below
-        block()
+        val lambda = statementConstructor.lambda(exception) { block() }
+        +assertions[jsAssertThrows](lambda, "Error", exception.name)
     }
 
     override fun assertEquals(expected: CgValue, actual: CgValue) {

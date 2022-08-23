@@ -572,7 +572,8 @@ open class JsClassId(
     private val constructor: JsConstructorId? = null,
     private val classPackagePath: String = "",
     private val classFilePath: String = "",
-) : ClassId(jsName) {
+    override val elementClassId: JsClassId? = null
+) : ClassId(jsName, elementClassId) {
     override val simpleName: String
         get() = jsName
 
@@ -771,7 +772,7 @@ val Type.classId: ClassId
  */
 open class ClassId @JvmOverloads constructor(
     val name: String,
-    val elementClassId: ClassId? = null,
+    open val elementClassId: ClassId? = null,
     // Treat simple class ids as non-nullable
     open val isNullable: Boolean = false
 ) {

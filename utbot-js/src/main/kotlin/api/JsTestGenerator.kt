@@ -205,7 +205,7 @@ class JsTestGenerator(
                         stateBefore = initEnv,
                         stateAfter = initEnv,
                         // Result should be UtExecutionFailure for throw statements
-                        result = UtExecutionSuccess(result),
+                        result = UtExplicitlyThrownException(Throwable(returnValue.toString()), false),
                         instrumentation = emptyList(),
                         path = mutableListOf(),
                         fullPath = emptyList(),

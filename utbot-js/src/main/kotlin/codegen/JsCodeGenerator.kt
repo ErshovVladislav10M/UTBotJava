@@ -57,9 +57,8 @@ class JsCodeGenerator(
         cgTestSets: List<CgMethodTestSet>,
         testClassCustomName: String? = null,
     ): TestsCodeWithTestReport = withCustomContext(testClassCustomName) {
-            val testClassFile = CgTestClassConstructor(context).construct(cgTestSets)
-            TestsCodeWithTestReport(renderClassFile(testClassFile), testClassFile.testsGenerationReport)
-
+        val testClassFile = CgTestClassConstructor(context).construct(cgTestSets)
+        TestsCodeWithTestReport(renderClassFile(testClassFile), testClassFile.testsGenerationReport)
     }
 
     private fun <R> withCustomContext(testClassCustomName: String? = null, block: () -> R): R {
