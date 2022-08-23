@@ -107,8 +107,7 @@ test("${context.filePathToInference}")
             val (reader, _) = JsCmdExec.runCommand(
                 "node ${projectPath}${File.separator}$utbotDir${File.separator}ternScript.js",
                 "$projectPath${File.separator}$utbotDir${File.separator}",
-                true,
-                15_000
+                true
             )
             val text = reader.readText().replaceAfterLast("}", "")
             json = JSONObject(text)

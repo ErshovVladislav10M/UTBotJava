@@ -275,7 +275,7 @@ class JsTestGenerator(
         val tempFile = File("$workDir${File.separator}$utbotDir${File.separator}tempScriptUtbotJs.js")
         tempFile.createNewFile()
         tempFile.writeText(scriptText)
-        val (reader, errorReader) = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true, 15_000)
+        val (reader, errorReader) = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)
         tempFile.delete()
         return errorReader.readText().ifEmpty { reader.readText() }
     }
