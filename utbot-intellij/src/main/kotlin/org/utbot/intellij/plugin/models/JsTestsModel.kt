@@ -13,6 +13,7 @@ class JsTestsModel(
     testModule: Module,
     val fileMethods: Set<JSMemberInfo>,
     var selectedMethods: Set<JSMemberInfo>,
+    var timeout: Long,
 ) : BaseTestsModel(
     project,
     srcModule,

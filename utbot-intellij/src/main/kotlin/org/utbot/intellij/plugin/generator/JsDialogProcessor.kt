@@ -13,6 +13,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.impl.file.PsiDirectoryFactory
 import com.intellij.util.concurrency.AppExecutorUtil
+import java.util.concurrent.TimeUnit
 import org.jetbrains.kotlin.idea.util.application.invokeLater
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
@@ -74,6 +75,18 @@ object JsDialogProcessor {
         val normalizedContainingFilePath = containingFilePath.replace("/", "\\")
         (object : Task.Backgroundable(model.project, "Generate tests") {
             override fun run(indicator: ProgressIndicator) {
+
+                val startTime = System.currentTimeMillis()
+                val secondsTimeout = TimeUnit.MILLISECONDS.toSeconds(model.timeout)
+                val totalTimeout = model.timeout * model.selectedMethods.size
+
+                indicator.isIndeterminate = false
+                indicator.text = "Generate tests: read classes"
+
+                val timerHandler = AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay({
+                    indicator.fraction = (System.currentTimeMillis() - startTime).toDouble() / totalTimeout
+                }, 0, 500, TimeUnit.MILLISECONDS)
+
                 runIgnoringCancellationException {
                     runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
                         val testDir = PsiDirectoryFactory.getInstance(project).createDirectory(
@@ -95,6 +108,11 @@ object JsDialogProcessor {
                             outputFilePath = "${testDir.virtualFile.path}/$testFileName".replace("/", "\\"),
                             exportsManager = partial(::manageExports, editor, project)
                         )
+
+                        timerHandler.cancel(true)
+                        indicator.fraction = indicator.fraction.coerceAtLeast(0.9)
+                        indicator.text = "Generate code for tests"
+
                         val generatedCode = testGenerator.run()
                         invokeLater {
                             runWriteAction {
