@@ -16,7 +16,7 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 
-class JsGenerateTestsCommand : CliktCommand(name = "generateJS", help = "Generates tests for the specified class or toplevel functions") {
+class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Generates tests for the specified class or toplevel functions") {
 
     private val sourceCodeFile by option(
         "-s", "--source",

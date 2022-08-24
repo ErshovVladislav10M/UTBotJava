@@ -24,6 +24,7 @@ internal class JsCgVariableConstructor(ctx: CgContext): CgVariableConstructor(ct
                 is UtCompositeModel -> TODO()
                 is UtAssembleModel -> constructAssemble(model, baseName)
                 is UtArrayModel -> TODO()
+                else -> TODO()
             }
         } else valueByModel.getOrPut(model) {
             when (model) {

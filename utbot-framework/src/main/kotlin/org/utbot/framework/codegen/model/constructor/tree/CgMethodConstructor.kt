@@ -147,6 +147,14 @@ import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.util.description
 import java.security.AccessControlException
 import java.lang.reflect.ParameterizedType
+import org.utbot.framework.codegen.Junit4
+import org.utbot.framework.codegen.Junit5
+import org.utbot.framework.codegen.TestNg
+import org.utbot.framework.codegen.model.constructor.builtin.setArrayElement
+import org.utbot.framework.codegen.model.tree.CgAnnotation
+import org.utbot.framework.codegen.model.util.at
+import org.utbot.framework.plugin.api.util.builtinStaticMethodId
+import org.utbot.framework.plugin.api.util.methodId
 import kotlin.reflect.jvm.javaType
 
 private const val DEEP_EQUALS_MAX_DEPTH = 5 // TODO move it to plugin settings?
@@ -1511,7 +1519,7 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
             setArgumentsArrayElement(argsArray, i, argument, this)
         }
         testFrameworkManager.passArgumentsToArgsVariable(argsVariable, argsArray, executionIndex)
-    }
+
         when (testFramework) {
             Junit5 -> {
                 +argsVariable[addToListMethodId](
@@ -1522,6 +1530,7 @@ class CgMethodConstructor(val context: CgContext) : CgContextOwner by context,
                 setArgumentsArrayElement(argsVariable, executionIndex, argsArray)
             }
             Junit4 -> error("Parameterized tests are not supported for JUnit4")
+            Mocha -> error("Parameterized tests are not supported for JUnit4")
         }
     }
 

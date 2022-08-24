@@ -438,7 +438,7 @@ data class CgContext(
      * (i.e. outside of [CgContextOwner.withTestClassFileScope]).
      */
     override val outerMostTestClassContext: TestClassContext
-        get() = _outerMostTestClassContext ?: error("Accessing outerMostTestClassInfo out of class file scope")
+        get() = if (codegenLanguage == CodegenLanguage.JS) TestClassContext() else _outerMostTestClassContext ?: error("Accessing outerMostTestClassInfo out of class file scope")
 
     private var _outerMostTestClassContext: TestClassContext? = null
 

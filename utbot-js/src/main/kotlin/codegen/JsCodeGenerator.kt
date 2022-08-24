@@ -2,7 +2,6 @@ package codegen
 
 import org.utbot.framework.codegen.ForceStaticMocking
 import org.utbot.framework.codegen.HangingTestsTimeout
-import org.utbot.framework.codegen.Import
 import org.utbot.framework.codegen.Mocha
 import org.utbot.framework.codegen.ParametrizedTestSource
 import org.utbot.framework.codegen.RegularImport
@@ -11,6 +10,7 @@ import org.utbot.framework.codegen.StaticsMocking
 import org.utbot.framework.codegen.TestFramework
 import org.utbot.framework.codegen.model.TestsCodeWithTestReport
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
+import org.utbot.framework.codegen.model.constructor.TestClassModel
 import org.utbot.framework.codegen.model.constructor.context.CgContext
 import org.utbot.framework.codegen.model.constructor.tree.CgTestClassConstructor
 import org.utbot.framework.codegen.model.tree.CgTestClassFile
@@ -57,7 +57,8 @@ class JsCodeGenerator(
         cgTestSets: List<CgMethodTestSet>,
         testClassCustomName: String? = null,
     ): TestsCodeWithTestReport = withCustomContext(testClassCustomName) {
-        val testClassFile = CgTestClassConstructor(context).construct(cgTestSets)
+        val testClassModel = TestClassModel(classUnderTest, cgTestSets)
+        val testClassFile = CgTestClassConstructor(context).construct(testClassModel)
         TestsCodeWithTestReport(renderClassFile(testClassFile), testClassFile.testsGenerationReport)
     }
 

@@ -15,6 +15,7 @@ import org.utbot.fuzzer.providers.PrimitivesModelProvider
 import org.utbot.fuzzer.providers.StringConstantModelProvider
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.IntSupplier
 import kotlin.random.Random
 
 private val logger by lazy { KotlinLogging.logger {} }
@@ -223,6 +224,7 @@ suspend fun <T> SequenceScope<List<FuzzedValue>>.yieldMutated(
         return true
     }
     return false
+}
 class SimpleIdGenerator : IntSupplier {
     private val id = AtomicInteger()
     override fun getAsInt() = id.incrementAndGet()

@@ -136,21 +136,7 @@ import org.utbot.intellij.plugin.ui.utils.parseVersion
 import org.utbot.intellij.plugin.ui.utils.testResourceRootTypes
 import org.utbot.intellij.plugin.ui.utils.testRootType
 import org.utbot.intellij.plugin.util.IntelliJApiHelper
-import org.utbot.intellij.plugin.util.AndroidApiHelper
-import java.awt.BorderLayout
-import java.awt.Color
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.util.*
-import java.util.concurrent.TimeUnit
-import javax.swing.DefaultComboBoxModel
-import javax.swing.JComboBox
-import javax.swing.JComponent
-import javax.swing.JList
-import javax.swing.JPanel
 import org.utbot.framework.codegen.Mocha
-import kotlin.streams.toList
 import org.utbot.intellij.plugin.util.isAbstract
 
 private const val RECENTS_KEY = "org.utbot.recents"

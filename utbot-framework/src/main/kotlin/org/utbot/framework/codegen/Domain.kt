@@ -608,6 +608,12 @@ object Mocha : TestFramework("Mocha") {
     override val methodSourceAnnotation = "Parameterized tests are not supported for Mocha"
     override val methodSourceAnnotationFqn = "Parameterized tests are not supported for Mocha"
 
+    //TODO MINOR: think
+    override val nestedClassesShouldBeStatic: Boolean
+        get() = false
+    override val argListClassId: ClassId
+        get() = jsUndefinedClassId
+
     override fun getRunTestsCommand(
         executionInvoke: String,
         classPath: String,

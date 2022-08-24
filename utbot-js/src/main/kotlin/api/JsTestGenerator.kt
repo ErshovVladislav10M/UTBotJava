@@ -214,9 +214,6 @@ class JsTestGenerator(
                         stateBefore = initEnv,
                         stateAfter = initEnv,
                         result = utExecResult,
-                        instrumentation = emptyList(),
-                        path = mutableListOf(),
-                        fullPath = emptyList(),
                     )
                 )
             }

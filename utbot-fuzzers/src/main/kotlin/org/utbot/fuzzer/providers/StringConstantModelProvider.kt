@@ -31,21 +31,4 @@ object StringConstantModelProvider : ModelProvider {
         yieldAllValues(description.parametersMap.getOrElse(stringClassId) { emptyList() }, charsAsStrings)
     }
 
-    fun mutate(random: Random, value: String?, op: FuzzedOp): String? {
-        if (value == null || value.isEmpty() || op != FuzzedOp.CH) return null
-        val indexOfMutation = random.nextInt(value.length)
-        return value.replaceRange(indexOfMutation, indexOfMutation + 1, SingleCharacterSequence(value[indexOfMutation] - random.nextInt(1, 128)))
-    }
-
-    class SingleCharacterSequence(private val character: Char) : CharSequence {
-        override val length: Int
-            get() = 1
-
-        override fun get(index: Int): Char = character
-
-        override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
-            throw UnsupportedOperationException()
-        }
-
-    }
 }

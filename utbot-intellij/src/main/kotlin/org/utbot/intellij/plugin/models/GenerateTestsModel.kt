@@ -18,9 +18,9 @@ import org.utbot.intellij.plugin.ui.utils.BaseTestsModel
 import org.utbot.intellij.plugin.ui.utils.jdkVersion
 
 data class GenerateTestsModel(
-    val project: Project,
-    val srcModule: Module,
-    val potentialTestModules: List<Module>,
+    override val project: Project,
+    override val srcModule: Module,
+    override val potentialTestModules: List<Module>,
     var srcClasses: Set<PsiClass>,
     var selectedMethods: Set<MemberInfo>?,
     var timeout: Long,
@@ -29,19 +29,8 @@ data class GenerateTestsModel(
 ) : BaseTestsModel(
     project,
     srcModule,
-    potentialTestModules.firstOrNull() ?: error("Empty list of test modules in model"),
+    potentialTestModules,
 ) {
-    // GenerateTestsModel is supposed to be created with non-empty list of potentialTestModules.
-    // Otherwise, the error window is supposed to be shown earlier.
-    var testModule: Module = potentialTestModules.firstOrNull() ?: error("Empty list of test modules in model")
-
-    var testSourceRoot: VirtualFile? = null
-    fun setSourceRootAndFindTestModule(newTestSourceRoot: VirtualFile?) {
-        requireNotNull(newTestSourceRoot)
-        testSourceRoot = newTestSourceRoot
-        testModule = ModuleUtil.findModuleForFile(newTestSourceRoot, project)
-            ?: error("Could not find module for $newTestSourceRoot")
-    }
 
     var testPackageName: String? = null
     lateinit var testFramework: TestFramework
