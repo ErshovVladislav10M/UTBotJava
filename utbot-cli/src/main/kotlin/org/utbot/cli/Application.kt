@@ -34,6 +34,7 @@ fun main(args: Array<String>) = try {
         RunTestsCommand(),
         JsGenerateTestsCommand(),
         JsRunTestsCommand(),
+        JsCoverageCommand(),
     ).main(args)
 } catch (ex: Throwable) {
     ex.printStackTrace()
