@@ -16,6 +16,7 @@ import org.utbot.framework.codegen.model.tree.CgComment
 import org.utbot.framework.codegen.model.tree.CgCommentedAnnotation
 import org.utbot.framework.codegen.model.tree.CgComparison
 import org.utbot.framework.codegen.model.tree.CgContinueStatement
+import org.utbot.framework.codegen.model.tree.CgCustomTagStatement
 import org.utbot.framework.codegen.model.tree.CgDeclaration
 import org.utbot.framework.codegen.model.tree.CgDecrement
 import org.utbot.framework.codegen.model.tree.CgDoWhileLoop
@@ -39,6 +40,7 @@ import org.utbot.framework.codegen.model.tree.CgGreaterThan
 import org.utbot.framework.codegen.model.tree.CgIfStatement
 import org.utbot.framework.codegen.model.tree.CgIncrement
 import org.utbot.framework.codegen.model.tree.CgInnerBlock
+import org.utbot.framework.codegen.model.tree.CgIsInstance
 import org.utbot.framework.codegen.model.tree.CgLessThan
 import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgLogicalAnd
@@ -120,7 +122,7 @@ abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter
     }
 
     private val MethodId.accessibleByName: Boolean
-        get() = (context.shouldOptimizeImports && this in context.importedStaticMethods) || classId == context.currentTestClass
+        get() = (context.shouldOptimizeImports && this in context.importedStaticMethods) || classId == context.outerMostTestClass
 
     override fun visit(element: CgElement) {
         val error =
@@ -136,7 +138,7 @@ abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter
 
     override fun visit(element: CgTestClassBody) {
         // render regions for test methods and utils
-        for ((i, region) in (element.regions + element.utilsRegion).withIndex()) {
+        for ((i, region) in (element.regions + element.nestedClassRegions + element.utilsRegion).withIndex()) {
             if (i != 0) println()
 
             region.accept(this)
@@ -195,7 +197,7 @@ abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter
     }
 
     override fun visit(element: CgUtilMethod) {
-        context.currentTestClass
+        context.outerMostTestClass
                 .utilMethodById(element.id, context)
                 .split("\n")
                 .forEach { line -> println(line) }
@@ -308,11 +310,19 @@ abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter
     }
     override fun visit(element: CgDocPreTagStatement) {
         if (element.content.all { it.isEmpty() }) return
-
         println("<pre>")
         for (stmt in element.content) stmt.accept(this)
         println("</pre>")
     }
+
+    override fun visit(element: CgCustomTagStatement) {
+        if (element.statements.all { it.isEmpty() }) return
+
+        for (stmt in element.statements) {
+            stmt.accept(this)
+        }
+    }
+
     override fun visit(element: CgDocCodeStmt) {
         if (element.isEmpty()) return
 
@@ -420,6 +430,15 @@ abstract class CgAbstractRenderer(val context: CgContext, val printer: CgPrinter
 
     override fun visit(element: CgDecrement) {
         print("${element.variable.name}--")
+    }
+
+    // isInstance check
+
+    override fun visit(element: CgIsInstance) {
+        element.classExpression.accept(this)
+        print(".isInstance(")
+        element.value.accept(this)
+        print(")")
     }
 
     // Try-catch

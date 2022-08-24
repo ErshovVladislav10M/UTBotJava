@@ -22,6 +22,7 @@ import org.utbot.framework.codegen.model.tree.CgDocClassLinkStmt
 import org.utbot.framework.codegen.model.tree.CgDocCodeStmt
 import org.utbot.framework.codegen.model.tree.CgDocMethodLinkStmt
 import org.utbot.framework.codegen.model.tree.CgDocPreTagStatement
+import org.utbot.framework.codegen.model.tree.CgCustomTagStatement
 import org.utbot.framework.codegen.model.tree.CgDocRegularStmt
 import org.utbot.framework.codegen.model.tree.CgDocumentationComment
 import org.utbot.framework.codegen.model.tree.CgElement
@@ -42,6 +43,7 @@ import org.utbot.framework.codegen.model.tree.CgGreaterThan
 import org.utbot.framework.codegen.model.tree.CgIfStatement
 import org.utbot.framework.codegen.model.tree.CgIncrement
 import org.utbot.framework.codegen.model.tree.CgInnerBlock
+import org.utbot.framework.codegen.model.tree.CgIsInstance
 import org.utbot.framework.codegen.model.tree.CgLessThan
 import org.utbot.framework.codegen.model.tree.CgLiteral
 import org.utbot.framework.codegen.model.tree.CgLogicalAnd
@@ -121,6 +123,7 @@ interface CgVisitor<R> {
 
     // Comment statements
     fun visit(element: CgDocPreTagStatement): R
+    fun visit(element: CgCustomTagStatement): R
     fun visit(element: CgDocCodeStmt): R
     fun visit(element: CgDocRegularStmt): R
     fun visit(element: CgDocClassLinkStmt): R
@@ -179,6 +182,9 @@ interface CgVisitor<R> {
 
     // Type cast
     fun visit(element: CgTypeCast): R
+
+    // isInstance check
+    fun visit(element: CgIsInstance): R
 
     // This instance
     fun visit(element: CgThisInstance): R

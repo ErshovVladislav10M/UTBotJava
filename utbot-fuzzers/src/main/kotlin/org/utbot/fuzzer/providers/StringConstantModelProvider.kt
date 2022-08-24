@@ -1,31 +1,34 @@
 package org.utbot.fuzzer.providers
 
 import org.utbot.framework.plugin.api.UtPrimitiveModel
+import org.utbot.framework.plugin.api.util.charClassId
 import org.utbot.framework.plugin.api.util.stringClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
-import org.utbot.fuzzer.FuzzedOp
 import org.utbot.fuzzer.FuzzedParameter
 import org.utbot.fuzzer.ModelProvider
+import org.utbot.fuzzer.ModelProvider.Companion.yieldAllValues
 import org.utbot.fuzzer.ModelProvider.Companion.yieldValue
-import kotlin.random.Random
 
 object StringConstantModelProvider : ModelProvider {
 
     override fun generate(description: FuzzedMethodDescription): Sequence<FuzzedParameter> = sequence {
-        val random = Random(72923L)
         description.concreteValues
             .asSequence()
             .filter { (classId, _) -> classId == stringClassId }
-            .forEach { (_, value, op) ->
-                listOf(value, mutate(random, value as? String, op))
-                    .asSequence()
-                    .filterNotNull()
-                    .map { UtPrimitiveModel(it) }.forEach { model ->
-                        description.parametersMap.getOrElse(model.classId) { emptyList() }.forEach { index ->
-                            yieldValue(index, model.fuzzed { summary = "%var% = string" })
-                        }
-                    }
+            .forEach { (_, value, _) ->
+                description.parametersMap.getOrElse(stringClassId) { emptyList() }.forEach { index ->
+                    yieldValue(index, UtPrimitiveModel(value).fuzzed { summary = "%var% = string" })
+                }
             }
+        val charsAsStrings = description.concreteValues
+            .asSequence()
+            .filter { (classId, _) -> classId == charClassId }
+            .map { (_, value, _) ->
+                UtPrimitiveModel((value as Char).toString()).fuzzed {
+                    summary = "%var% = $value"
+                }
+            }
+        yieldAllValues(description.parametersMap.getOrElse(stringClassId) { emptyList() }, charsAsStrings)
     }
 
     fun mutate(random: Random, value: String?, op: FuzzedOp): String? {

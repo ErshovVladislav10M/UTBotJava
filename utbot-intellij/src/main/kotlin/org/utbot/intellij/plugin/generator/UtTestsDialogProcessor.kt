@@ -19,31 +19,33 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiClass
-import com.intellij.psi.PsiModifier
 import com.intellij.psi.SyntheticElement
 import com.intellij.refactoring.util.classMembers.MemberInfo
 import com.intellij.testIntegration.TestIntegrationUtils
 import com.intellij.util.concurrency.AppExecutorUtil
 import mu.KotlinLogging
 import org.jetbrains.kotlin.idea.util.module
+import org.utbot.analytics.EngineAnalyticsContext
+import org.utbot.analytics.Predictors
+import org.utbot.common.filterWhen
 import org.utbot.engine.util.mockListeners.ForceMockListener
-import org.utbot.framework.JdkPathService
+import org.utbot.framework.plugin.services.JdkInfoService
 import org.utbot.framework.UtSettings
-import org.utbot.framework.codegen.ParametrizedTestSource
 import org.utbot.framework.plugin.api.TestCaseGenerator
 import org.utbot.framework.plugin.api.UtMethod
 import org.utbot.framework.plugin.api.UtMethodTestSet
+import org.utbot.framework.plugin.api.testFlow
 import org.utbot.framework.plugin.api.util.UtContext
-import org.utbot.framework.plugin.api.util.withSubstitutionCondition
+import org.utbot.framework.plugin.api.util.withStaticsSubstitutionRequired
 import org.utbot.framework.plugin.api.util.withUtContext
 import org.utbot.intellij.plugin.generator.CodeGenerationController.generateTests
 import org.utbot.intellij.plugin.models.GenerateTestsModel
 import org.utbot.intellij.plugin.ui.GenerateTestsDialogWindow
-import org.utbot.intellij.plugin.ui.utils.jdkVersion
 import org.utbot.intellij.plugin.ui.utils.showErrorDialogLater
-import org.utbot.intellij.plugin.ui.utils.testModule
-import org.utbot.intellij.plugin.util.AndroidApiHelper
-import org.utbot.intellij.plugin.util.PluginJdkPathProvider
+import org.utbot.intellij.plugin.ui.utils.suitableTestSourceRoots
+import org.utbot.intellij.plugin.ui.utils.testModules
+import org.utbot.intellij.plugin.util.IntelliJApiHelper
+import org.utbot.intellij.plugin.util.PluginJdkInfoProvider
 import org.utbot.intellij.plugin.util.signature
 import org.utbot.summary.summarize
 import java.io.File
@@ -51,10 +53,13 @@ import java.net.URLClassLoader
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
-import org.utbot.common.filterWhen
 import org.utbot.engine.util.mockListeners.ForceStaticMockListener
-import org.utbot.framework.plugin.api.testFlow
+import org.utbot.framework.PathSelectorType
+import org.utbot.framework.plugin.services.WorkingDirService
 import org.utbot.intellij.plugin.settings.Settings
+import org.utbot.intellij.plugin.ui.utils.isBuildWithGradle
+import org.utbot.intellij.plugin.ui.utils.suitableTestSourceRoots
+import org.utbot.intellij.plugin.util.PluginWorkingDirProvider
 import org.utbot.intellij.plugin.util.isAbstract
 import kotlin.reflect.KClass
 import kotlin.reflect.full.functions
@@ -79,14 +84,18 @@ object UtTestsDialogProcessor {
         focusedMethod: MemberInfo?,
     ): GenerateTestsDialogWindow? {
         val srcModule = findSrcModule(srcClasses)
-        val testModule = srcModule.testModule(project)
+        val testModules = srcModule.testModules(project)
 
-        JdkPathService.jdkPathProvider = PluginJdkPathProvider(project, testModule)
-        val jdkVersion = try {
-            testModule.jdkVersion()
-        } catch (e: IllegalStateException) {
-            // Just ignore it here, notification will be shown in
-            // org.utbot.intellij.plugin.ui.utils.ModuleUtilsKt.jdkVersionBy
+        JdkInfoService.jdkInfoProvider = PluginJdkInfoProvider(project)
+        // we want to start the child process in the same directory as the test runner
+        WorkingDirService.workingDirProvider = PluginWorkingDirProvider(project)
+
+        if (project.isBuildWithGradle && testModules.flatMap { it.suitableTestSourceRoots() }.isEmpty()) {
+            val errorMessage = """
+                <html>No test source roots found in the project.<br>
+                Please, <a href="https://www.jetbrains.com/help/idea/testing.html#add-test-root">create or configure</a> at least one test source root.
+            """.trimIndent()
+            showErrorDialogLater(project, errorMessage, "Test source roots not found")
             return null
         }
 
@@ -94,8 +103,7 @@ object UtTestsDialogProcessor {
             GenerateTestsModel(
                 project,
                 srcModule,
-                testModule,
-                jdkVersion,
+                testModules,
                 srcClasses,
                 if (focusedMethod != null) setOf(focusedMethod) else null,
                 UtSettings.utBotGenerationTimeoutInMillis,
@@ -108,7 +116,8 @@ object UtTestsDialogProcessor {
             .make(
                 // Compile only chosen classes and their dependencies before generation.
                 CompositeScope(
-                    model.srcClasses.map{ OneProjectItemCompileScope(project, it.containingFile.virtualFile) }.toTypedArray()
+                    model.srcClasses.map { OneProjectItemCompileScope(project, it.containingFile.virtualFile) }
+                        .toTypedArray()
                 )
             ) { aborted: Boolean, errors: Int, _: Int, _: CompileContext ->
                 if (!aborted && errors == 0) {
@@ -139,18 +148,23 @@ object UtTestsDialogProcessor {
                             var processedClasses = 0
                             val totalClasses = model.srcClasses.size
 
+                            configureML()
+
                             val testCaseGenerator = TestCaseGenerator(
-                                    Paths.get(buildDir),
-                                    classpath,
-                                    pluginJarsPath.joinToString(separator = File.pathSeparator),
-                                    isCanceled = { indicator.isCanceled }
-                                )
+                                Paths.get(buildDir),
+                                classpath,
+                                pluginJarsPath.joinToString(separator = File.pathSeparator),
+                                isCanceled = { indicator.isCanceled }
+                            )
 
                             for (srcClass in model.srcClasses) {
                                 val methods = ReadAction.nonBlocking<List<UtMethod<*>>> {
                                     val clazz = classLoader.loadClass(srcClass.qualifiedName).kotlin
-                                    val srcMethods = model.selectedMethods?.toList() ?:
-                                        TestIntegrationUtils.extractClassMethods(srcClass, false)
+                                    val srcMethods =
+                                        model.selectedMethods?.toList() ?: TestIntegrationUtils.extractClassMethods(
+                                            srcClass,
+                                            false
+                                        )
                                             .filterWhen(UtSettings.skipTestGenerationForSyntheticMethods) {
                                                 it.member !is SyntheticElement
                                             }
@@ -168,20 +182,21 @@ object UtTestsDialogProcessor {
 
                                 indicator.text = "Generate test cases for class $className"
                                 if (totalClasses > 1) {
-                                    indicator.fraction = indicator.fraction.coerceAtLeast(0.9 * processedClasses / totalClasses)
+                                    indicator.fraction =
+                                        indicator.fraction.coerceAtLeast(0.9 * processedClasses / totalClasses)
                                 }
 
-                                //we should not substitute statics for parametrized tests
-                                val shouldSubstituteStatics =
-                                    model.parametrizedTestSource != ParametrizedTestSource.PARAMETRIZE
                                 // set timeout for concrete execution and for generated tests
                                 UtSettings.concreteExecutionTimeoutInChildProcess = model.hangingTestsTimeout.timeoutMs
 
-                                val searchDirectory =  ReadAction
-                                    .nonBlocking<Path> { project.basePath?.let { Paths.get(it) } ?: Paths.get(srcClass.containingFile.virtualFile.parent.path) }
+                                val searchDirectory = ReadAction
+                                    .nonBlocking<Path> {
+                                        project.basePath?.let { Paths.get(it) }
+                                            ?: Paths.get(srcClass.containingFile.virtualFile.parent.path)
+                                    }
                                     .executeSynchronously()
 
-                                withSubstitutionCondition(shouldSubstituteStatics) {
+                                withStaticsSubstitutionRequired(true) {
                                     val mockFrameworkInstalled = model.mockFramework?.isInstalled ?: true
 
                                     if (!mockFrameworkInstalled) {
@@ -196,28 +211,32 @@ object UtTestsDialogProcessor {
                                         withUtContext(context) {
                                             testCaseGenerator
                                                 .generate(
-                                                methods,
-                                                model.mockStrategy,
-                                                model.chosenClassesToMockAlways,
-                                                model.timeout,
-                                                generate = testFlow {
-                                                    generationTimeout = model.timeout
-                                                    isSymbolicEngineEnabled = true
-                                                    isFuzzingEnabled = UtSettings.useFuzzing
-                                                    fuzzingValue = project.service<Settings>().fuzzingValue
-                                                }
-                                            )
+                                                    methods,
+                                                    model.mockStrategy,
+                                                    model.chosenClassesToMockAlways,
+                                                    model.timeout,
+                                                    generate = testFlow {
+                                                        generationTimeout = model.timeout
+                                                        isSymbolicEngineEnabled = true
+                                                        isFuzzingEnabled = UtSettings.useFuzzing
+                                                        fuzzingValue = project.service<Settings>().fuzzingValue
+                                                    }
+                                                )
                                                 .map { it.summarize(searchDirectory) }
                                                 .filterNot { it.executions.isEmpty() && it.errors.isEmpty() }
                                         }
                                     }.getOrDefault(listOf())
 
                                     if (notEmptyCases.isEmpty()) {
-                                        showErrorDialogLater(
-                                            model.project,
-                                            errorMessage(className, secondsTimeout),
-                                            title = "Failed to generate unit tests for class $className"
-                                        )
+                                        if (model.srcClasses.size > 1) {
+                                            logger.error { "Failed to generate any tests cases for class $className" }
+                                        } else {
+                                            showErrorDialogLater(
+                                                model.project,
+                                                errorMessage(className, secondsTimeout),
+                                                title = "Failed to generate unit tests for class $className"
+                                            )
+                                        }
                                     } else {
                                         testSetsByClass[srcClass] = notEmptyCases
                                     }
@@ -232,7 +251,8 @@ object UtTestsDialogProcessor {
                                     Messages.showInfoMessage(
                                         model.project,
                                         "No methods for test generation were found among selected items",
-                                        "No methods found")
+                                        "No methods found"
+                                    )
                                 }
                                 return
                             }
@@ -253,6 +273,36 @@ object UtTestsDialogProcessor {
             }
     }
 
+    /**
+     * Configures utbot-analytics models for the better path selection.
+     *
+     * NOTE: If analytics configuration for the NN Path Selector could not be loaded,
+     * it switches to the [PathSelectorType.INHERITORS_SELECTOR].
+     */
+    private fun configureML() {
+        logger.info { "PathSelectorType: ${UtSettings.pathSelectorType}" }
+
+        if (UtSettings.pathSelectorType == PathSelectorType.NN_REWARD_GUIDED_SELECTOR) {
+            val analyticsConfigurationClassPath = UtSettings.analyticsConfigurationClassPath
+            try {
+                Class.forName(analyticsConfigurationClassPath)
+                Predictors.stateRewardPredictor = EngineAnalyticsContext.stateRewardPredictorFactory()
+
+                logger.info { "RewardModelPath: ${UtSettings.rewardModelPath}" }
+            } catch (e: ClassNotFoundException) {
+                logger.error {
+                    "Configuration of the predictors from the utbot-analytics module described in the class: " +
+                            "$analyticsConfigurationClassPath is not found!"
+                }
+
+                logger.info(e) {
+                    "Error while initialization of ${UtSettings.pathSelectorType}. Changing pathSelectorType on INHERITORS_SELECTOR"
+                }
+                UtSettings.pathSelectorType = PathSelectorType.INHERITORS_SELECTOR
+            }
+        }
+    }
+
     private fun errorMessage(className: String?, timeout: Long) = buildString {
         appendLine("UtBot failed to generate any test cases for class $className.")
         appendLine()
@@ -260,7 +310,10 @@ object UtTestsDialogProcessor {
         appendLine("Alternatively, you could try to increase current timeout $timeout sec for generating tests in generation dialog.")
     }
 
-    private fun findMethodsInClassMatchingSelected(clazz: KClass<*>, selectedMethods: List<MemberInfo>): List<UtMethod<*>> {
+    private fun findMethodsInClassMatchingSelected(
+        clazz: KClass<*>,
+        selectedMethods: List<MemberInfo>
+    ): List<UtMethod<*>> {
         val selectedSignatures = selectedMethods.map { it.signature() }
         return clazz.functions
             .sortedWith(compareBy { selectedSignatures.indexOf(it.signature()) })
@@ -285,13 +338,7 @@ object UtTestsDialogProcessor {
         val buildDir = CompilerPaths.getModuleOutputPath(srcModule, false) ?: return null
         val pathsList = OrderEnumerator.orderEntries(srcModule).recursively().pathsList
 
-        val (classpath, classpathList) = if (AndroidApiHelper.isAndroidStudio()) {
-            // Add $JAVA_HOME/jre/lib/rt.jar to path.
-            // This allows Soot to analyze real java instead of stub version in Android SDK on local machine.
-            pathsList.add(
-                System.getenv("JAVA_HOME") + File.separator + Paths.get("jre", "lib", "rt.jar")
-            )
-
+        val (classpath, classpathList) = if (IntelliJApiHelper.isAndroidStudio()) {
             // Filter out manifests from classpath.
             val filterPredicate = { it: String ->
                 !it.contains("manifest", ignoreCase = true)

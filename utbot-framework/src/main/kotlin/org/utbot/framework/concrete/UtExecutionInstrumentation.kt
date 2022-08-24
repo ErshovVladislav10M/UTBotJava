@@ -20,6 +20,7 @@ import org.utbot.framework.plugin.api.UtInstrumentation
 import org.utbot.framework.plugin.api.UtMethod
 import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.UtNewInstanceInstrumentation
+import org.utbot.framework.plugin.api.UtSandboxFailure
 import org.utbot.framework.plugin.api.UtStaticMethodInstrumentation
 import org.utbot.framework.plugin.api.UtTimeoutException
 import org.utbot.framework.plugin.api.util.UtContext
@@ -37,6 +38,7 @@ import org.utbot.instrumentation.instrumentation.et.ExplicitThrowInstruction
 import org.utbot.instrumentation.instrumentation.et.TraceHandler
 import org.utbot.instrumentation.instrumentation.instrumenter.Instrumenter
 import org.utbot.instrumentation.instrumentation.mock.MockClassVisitor
+import java.security.AccessControlException
 import java.security.ProtectionDomain
 import java.util.IdentityHashMap
 import kotlin.reflect.jvm.javaMethod
@@ -178,7 +180,16 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
                     val stateAfterParametersWithThis = params.map { construct(it.value, it.clazz.id) }
                     val stateAfterStatics = (staticFields.keys/* + traceHandler.computePutStatics()*/)
                         .associateWith { fieldId ->
-                            fieldId.jField.run { construct(withAccessibility { get(null) }, fieldId.type) }
+                            fieldId.jField.run {
+                                val computedValue = withAccessibility { get(null) }
+                                val knownModel = stateBefore.statics[fieldId]
+                                val knownValue = staticFields[fieldId]
+                                if (knownModel != null && knownValue != null && knownValue == computedValue) {
+                                    knownModel
+                                } else {
+                                    construct(computedValue, fieldId.type)
+                                }
+                            }
                         }
                     val (stateAfterThis, stateAfterParameters) = if (stateBefore.thisInstance == null) {
                         null to stateAfterParametersWithThis
@@ -211,6 +222,9 @@ object UtExecutionInstrumentation : Instrumentation<UtConcreteExecutionResult> {
     private fun sortOutException(exception: Throwable): UtExecutionFailure {
         if (exception is TimeoutException) {
             return UtTimeoutException(exception)
+        }
+        if (exception is AccessControlException) {
+            return UtSandboxFailure(exception)
         }
         val instrs = traceHandler.computeInstructionList()
         val isNested = if (instrs.isEmpty()) {

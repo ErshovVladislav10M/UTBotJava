@@ -1,12 +1,14 @@
 package org.utbot.engine
 
 import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.persistentHashSetOf
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
-import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import org.utbot.common.WorkaroundReason.HACK
+import org.utbot.framework.UtSettings.ignoreStaticsFromTrustedLibraries
+import org.utbot.common.WorkaroundReason.IGNORE_STATICS_FROM_TRUSTED_LIBRARIES
 import org.utbot.common.WorkaroundReason.REMOVE_ANONYMOUS_CLASSES
 import org.utbot.common.unreachableBranch
 import org.utbot.common.withAccessibility
@@ -112,6 +114,7 @@ import soot.DoubleType
 import soot.FloatType
 import soot.IntType
 import soot.LongType
+import soot.Modifier
 import soot.PrimType
 import soot.RefLikeType
 import soot.RefType
@@ -188,11 +191,9 @@ import soot.jimple.internal.JThrowStmt
 import soot.jimple.internal.JVirtualInvokeExpr
 import soot.jimple.internal.JimpleLocal
 import soot.toolkits.graph.ExceptionalUnitGraph
-import sun.reflect.Reflection
-import sun.reflect.generics.reflectiveObjects.GenericArrayTypeImpl
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
-import sun.reflect.generics.reflectiveObjects.TypeVariableImpl
-import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
+import java.lang.reflect.GenericArrayType
+import java.lang.reflect.TypeVariable
+import java.lang.reflect.WildcardType
 import java.util.concurrent.atomic.AtomicInteger
 
 private val CAUGHT_EXCEPTION = LocalVariable("@caughtexception")
@@ -497,7 +498,7 @@ class Traverser(
         val declaringClass = field.declaringClass
 
         val updates = if (declaringClass.isEnum) {
-            makeConcreteUpdatesForEnums(fieldId, declaringClass, stmt)
+            makeConcreteUpdatesForEnumsWithStmt(fieldId, declaringClass, stmt)
         } else {
             makeConcreteUpdatesForNonEnumStaticField(field, fieldId, declaringClass, stmt)
         }
@@ -518,13 +519,10 @@ class Traverser(
         return true
     }
 
-    @Suppress("UnnecessaryVariable")
-    private fun makeConcreteUpdatesForEnums(
-        fieldId: FieldId,
-        declaringClass: SootClass,
-        stmt: Stmt
-    ): SymbolicStateUpdate {
-        val type = declaringClass.type
+    private fun makeConcreteUpdatesForEnum(
+        type: RefType,
+        fieldId: FieldId? = null
+    ): Pair<SymbolicStateUpdate, SymbolicValue?> {
         val jClass = type.id.jClass
 
         // symbolic value for enum class itself
@@ -545,7 +543,7 @@ class Traverser(
 
         val (staticFieldUpdates, curFieldSymbolicValueForLocalVariable) = makeEnumStaticFieldsUpdates(
             staticFields,
-            declaringClass,
+            type.sootClass,
             enumConstantSymbolicResultsByName,
             enumConstantSymbolicValues,
             enumClassValue,
@@ -563,15 +561,26 @@ class Traverser(
         }
 
         val initializedStaticFieldsMemoryUpdate = MemoryUpdate(
-            initializedStaticFields = staticFields.associate { it.first.fieldId to it.second.single() }.toPersistentMap(),
-            meaningfulStaticFields = meaningfulStaticFields.map { it.first.fieldId }.toPersistentSet()
+            initializedStaticFields = staticFields.map { it.first.fieldId }.toPersistentSet(),
+            meaningfulStaticFields = meaningfulStaticFields.map { it.first.fieldId }.toPersistentSet(),
+            symbolicEnumValues = enumConstantSymbolicValues.toPersistentList()
         )
 
-        val allUpdates = staticFieldUpdates +
-                nonStaticFieldsUpdates +
-                initializedStaticFieldsMemoryUpdate +
-                createConcreteLocalValueUpdate(stmt, curFieldSymbolicValueForLocalVariable)
+        return Pair(
+            staticFieldUpdates + nonStaticFieldsUpdates + initializedStaticFieldsMemoryUpdate,
+            curFieldSymbolicValueForLocalVariable
+        )
+    }
 
+    @Suppress("UnnecessaryVariable")
+    private fun makeConcreteUpdatesForEnumsWithStmt(
+        fieldId: FieldId,
+        declaringClass: SootClass,
+        stmt: Stmt
+    ): SymbolicStateUpdate {
+        val (enumUpdates, curFieldSymbolicValueForLocalVariable) =
+            makeConcreteUpdatesForEnum(declaringClass.type, fieldId)
+        val allUpdates = enumUpdates + createConcreteLocalValueUpdate(stmt, curFieldSymbolicValueForLocalVariable)
         return allUpdates
     }
 
@@ -588,7 +597,7 @@ class Traverser(
 
         // Collects memory updates
         val initializedFieldUpdate =
-            MemoryUpdate(initializedStaticFields = persistentHashMapOf(fieldId to concreteValue))
+            MemoryUpdate(initializedStaticFields = persistentHashSetOf(fieldId))
 
         val objectUpdate = objectUpdate(
             instance = findOrCreateStaticObject(declaringClass.type),
@@ -637,7 +646,8 @@ class Traverser(
     private fun extractConcreteValue(field: SootField): Any? =
         when (field.signature) {
             SECURITY_FIELD_SIGNATURE -> SecurityManager()
-            FIELD_FILTER_MAP_FIELD_SIGNATURE -> mapOf(Reflection::class to arrayOf("fieldFilterMap", "methodFilterMap"))
+            // todo change to class loading
+            //FIELD_FILTER_MAP_FIELD_SIGNATURE -> mapOf(Reflection::class to arrayOf("fieldFilterMap", "methodFilterMap"))
             METHOD_FILTER_MAP_FIELD_SIGNATURE -> emptyMap<Class<*>, Array<String>>()
             else -> {
                 val fieldId = field.fieldId
@@ -815,7 +825,7 @@ class Traverser(
                 val staticFieldMemoryUpdate = StaticFieldMemoryUpdateInfo(fieldId, value)
                 val touchedStaticFields = persistentListOf(staticFieldMemoryUpdate)
                 queuedSymbolicStateUpdates += MemoryUpdate(staticFieldsUpdates = touchedStaticFields)
-                if (!environment.method.isStaticInitializer && !fieldId.isSynthetic) {
+                if (!environment.method.isStaticInitializer && isStaticFieldMeaningful(left.field)) {
                     queuedSymbolicStateUpdates += MemoryUpdate(meaningfulStaticFields = persistentSetOf(fieldId))
                 }
             }
@@ -969,13 +979,13 @@ class Traverser(
         if (type is ParameterizedType) {
             val typeStorages = type.actualTypeArguments.map { actualTypeArgument ->
                 when (actualTypeArgument) {
-                    is WildcardTypeImpl -> {
+                    is WildcardType -> {
                         val upperBounds = actualTypeArgument.upperBounds
                         val lowerBounds = actualTypeArgument.lowerBounds
                         val allTypes = upperBounds + lowerBounds
 
-                        if (allTypes.any { it is GenericArrayTypeImpl }) {
-                            val errorTypes = allTypes.filterIsInstance<GenericArrayTypeImpl>()
+                        if (allTypes.any { it is GenericArrayType }) {
+                            val errorTypes = allTypes.filterIsInstance<GenericArrayType>()
                             TODO("we do not support GenericArrayTypeImpl yet, and $errorTypes found. SAT-1446")
                         }
 
@@ -984,23 +994,23 @@ class Traverser(
 
                         typeResolver.constructTypeStorage(OBJECT_TYPE, upperBoundsTypes.intersect(lowerBoundsTypes))
                     }
-                    is TypeVariableImpl<*> -> { // it is a type variable for the whole class, not the function type variable
+                    is TypeVariable<*> -> { // it is a type variable for the whole class, not the function type variable
                         val upperBounds = actualTypeArgument.bounds
 
-                        if (upperBounds.any { it is GenericArrayTypeImpl }) {
-                            val errorTypes = upperBounds.filterIsInstance<GenericArrayTypeImpl>()
-                            TODO("we do not support GenericArrayTypeImpl yet, and $errorTypes found. SAT-1446")
+                        if (upperBounds.any { it is GenericArrayType }) {
+                            val errorTypes = upperBounds.filterIsInstance<GenericArrayType>()
+                            TODO("we do not support GenericArrayType yet, and $errorTypes found. SAT-1446")
                         }
 
                         val upperBoundsTypes = typeResolver.intersectInheritors(upperBounds)
 
                         typeResolver.constructTypeStorage(OBJECT_TYPE, upperBoundsTypes)
                     }
-                    is GenericArrayTypeImpl -> {
+                    is GenericArrayType -> {
                         // TODO bug with T[][], because there is no such time T JIRA:1446
                         typeResolver.constructTypeStorage(OBJECT_TYPE, useConcreteType = false)
                     }
-                    is ParameterizedTypeImpl, is Class<*> -> {
+                    is ParameterizedType, is Class<*> -> {
                         val sootType = Scene.v().getType(actualTypeArgument.rawType.typeName)
 
                         typeResolver.constructTypeStorage(sootType, useConcreteType = false)
@@ -1381,6 +1391,39 @@ class Traverser(
         queuedSymbolicStateUpdates = queuedSymbolicStateUpdates.copy(memoryUpdates = MemoryUpdate())
     }
 
+    /**
+     * Return a symbolic value of the ordinal corresponding to the enum value with the given address.
+     */
+    private fun findEnumOrdinal(type: RefType, addr: UtAddrExpression): PrimitiveValue {
+        val array = memory.findArray(MemoryChunkDescriptor(ENUM_ORDINAL, type, IntType.v()))
+        return array.select(addr).toIntValue()
+    }
+
+    /**
+     * Initialize enum class: create symbolic values for static enum values and generate constraints
+     * that restrict the new instance to match one of enum values.
+     */
+    private fun initEnum(type: RefType, addr: UtAddrExpression, ordinal: PrimitiveValue) {
+        val classId = type.id
+        var predefinedEnumValues = memory.getSymbolicEnumValues(classId)
+        if (predefinedEnumValues.isEmpty()) {
+            val (enumValuesUpdate, _) = makeConcreteUpdatesForEnum(type)
+            queuedSymbolicStateUpdates += enumValuesUpdate
+            predefinedEnumValues = enumValuesUpdate.memoryUpdates.getSymbolicEnumValues(classId)
+        }
+
+        val enumValueConstraints = mkOr(
+            listOf(addrEq(addr, nullObjectAddr)) + predefinedEnumValues.map {
+                mkAnd(
+                    addrEq(addr, it.addr),
+                    mkEq(ordinal, findEnumOrdinal(it.type, it.addr))
+                )
+            }
+        )
+
+        queuedSymbolicStateUpdates += enumValueConstraints.asHardConstraint()
+    }
+
     private fun arrayInstanceOf(value: ArrayValue, checkType: Type): PrimitiveValue {
         val notNullConstraint = mkNot(addrEq(value.addr, nullObjectAddr))
 
@@ -1537,6 +1580,11 @@ class Traverser(
         // void foo(a A) { (B) a; (C) a; } -> a is null
         queuedSymbolicStateUpdates += typeConstraint.asHardConstraint()
         queuedSymbolicStateUpdates += typeRegistry.zeroDimensionConstraint(objectValue.addr).asHardConstraint()
+
+        // If we are casting to an enum class, we should initialize enum values and add value equality constraints
+        if (typeAfterCast.sootClass?.isEnum == true) {
+            initEnum(typeAfterCast, castedObject.addr, findEnumOrdinal(typeAfterCast, castedObject.addr))
+        }
 
         // TODO add memory constraints JIRA:1523
         return castedObject
@@ -1734,12 +1782,26 @@ class Traverser(
         queuedSymbolicStateUpdates += MemoryUpdate(staticFieldsUpdates = touchedStaticFields)
 
         // TODO filter enum constant static fields JIRA:1681
-        if (!environment.method.isStaticInitializer && !fieldId.isSynthetic) {
+        if (!environment.method.isStaticInitializer && isStaticFieldMeaningful(field)) {
             queuedSymbolicStateUpdates += MemoryUpdate(meaningfulStaticFields = persistentSetOf(fieldId))
         }
 
         return createdField
     }
+
+    /**
+     * For now the field is `meaningful` if it is safe to set, that is, it is not an internal system field nor a
+     * synthetic field. This filter is needed to prohibit changing internal fields, which can break up our own
+     * code and which are useless for the user.
+     *
+     * @return `true` if the field is meaningful, `false` otherwise.
+     */
+    private fun isStaticFieldMeaningful(field: SootField) =
+        !Modifier.isSynthetic(field.modifiers) &&
+            // we don't want to set fields from library classes
+            !workaround(IGNORE_STATICS_FROM_TRUSTED_LIBRARIES) {
+                ignoreStaticsFromTrustedLibraries && field.declaringClass.isFromTrustedLibrary()
+            }
 
     /**
      * Locates object represents static fields of particular class.
@@ -1986,13 +2048,13 @@ class Traverser(
 
         queuedSymbolicStateUpdates += typeRegistry.typeConstraint(addr, typeStorage).all().asHardConstraint()
 
-        val array = memory.findArray(MemoryChunkDescriptor(ENUM_ORDINAL, type, IntType.v()))
-        val ordinal = array.select(addr).toIntValue()
+        val ordinal = findEnumOrdinal(type, addr)
         val enumSize = classLoader.loadClass(type.sootClass.name).enumConstants.size
 
         queuedSymbolicStateUpdates += mkOr(Ge(ordinal, 0), addrEq(addr, nullObjectAddr)).asHardConstraint()
         queuedSymbolicStateUpdates += mkOr(Lt(ordinal, enumSize), addrEq(addr, nullObjectAddr)).asHardConstraint()
 
+        initEnum(type, addr, ordinal)
         touchAddress(addr)
 
         return ObjectValue(typeStorage, addr)
@@ -3275,10 +3337,11 @@ class Traverser(
         val updatedFields = staticFieldsUpdates.mapTo(mutableSetOf()) { it.fieldId }
         val objectUpdates = mutableListOf<UtNamedStore>()
 
-        // we assign unbounded symbolic variables for every non-final field of the class
+        // we assign unbounded symbolic variables for every non-final meaningful field of the class
+        // fields from predefined library classes are excluded, because there are not meaningful
         typeResolver
             .findFields(declaringClass.type)
-            .filter { !it.isFinal && it.fieldId in updatedFields }
+            .filter { !it.isFinal && it.fieldId in updatedFields && isStaticFieldMeaningful(it) }
             .forEach {
                 // remove updates from clinit, because we'll replace those values
                 // with new unbounded symbolic variable

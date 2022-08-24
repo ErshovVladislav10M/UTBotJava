@@ -1,5 +1,6 @@
 package org.utbot.examples.manual;
 
+import org.utbot.common.PathUtil;
 import org.utbot.examples.assemble.DirectAccess;
 import org.utbot.examples.assemble.PrimitiveFields;
 import org.utbot.examples.assemble.arrays.ArrayOfComplexArrays;
@@ -39,7 +40,9 @@ import org.utbot.framework.plugin.api.util.UtContext;
 import org.utbot.framework.util.Snippet;
 import java.io.File;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.Collections;
@@ -204,9 +207,7 @@ public class UtBotJavaApiTest {
                 fields
         );
 
-        UtClassRefModel classRefModel = new UtClassRefModel(
-                classIdForType(Class.class), Class.class
-        );
+        UtClassRefModel classRefModel = modelFactory.produceClassRefModel(Class.class);
 
         EnvironmentModels initialState = new EnvironmentModels(
                 classUnderTestModel,
@@ -389,9 +390,7 @@ public class UtBotJavaApiTest {
                 fields
         );
 
-        UtClassRefModel classRefModel = new UtClassRefModel(
-                classIdForType(Class.class), Class.class
-        );
+        UtClassRefModel classRefModel = modelFactory.produceClassRefModel(Class.class);
 
         EnvironmentModels initialState = new EnvironmentModels(
                 classUnderTestModel,
@@ -1310,8 +1309,12 @@ public class UtBotJavaApiTest {
 
     @NotNull
     private String getDependencyClassPath() {
-        return Arrays.stream(((URLClassLoader) Thread.currentThread().
-                getContextClassLoader()).getURLs()).map(url ->
+
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        URL[] urls = PathUtil.getUrlsFromClassLoader(contextClassLoader);
+
+
+        return Arrays.stream(urls).map(url ->
         {
             try {
                 return new File(url.toURI()).toString();
@@ -1321,7 +1324,6 @@ public class UtBotJavaApiTest {
             throw new RuntimeException();
         }).collect(Collectors.joining(File.pathSeparator));
     }
-
     public UtCompositeModel createArrayOfComplexArraysModel() {
         ClassId classIdOfArrayOfComplexArraysClass = classIdForType(ArrayOfComplexArrays.class);
         ClassId classIdOfComplexArray = classIdForType(ComplexArray.class);
