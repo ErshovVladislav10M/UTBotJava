@@ -83,25 +83,27 @@ fun Module.getOrCreateSarifReportsPath(testSourceRoot: VirtualFile?): Path {
 }
 
 /**
- * Find test module by current source module.
+ * Find test modules by current source module.
  */
-fun Module.testModule(project: Project): Module {
-    var testModule = findPotentialModuleForTests(project, this)
-    val testRootUrls = testModule.suitableTestSourceRoots()
+fun Module.testModules(project: Project): List<Module> {
+    var testModules = findPotentialModulesForTests(project, this)
+    val testRootUrls = testModules.flatMap { it.suitableTestSourceRoots() }
 
     //if no suitable module for tests is found, create tests in the same root
-    if (testRootUrls.isEmpty() && testModule.suitableTestSourceFolders().isEmpty()) {
-        testModule = this
+    if (testRootUrls.isEmpty() && testModules.flatMap { it.suitableTestSourceFolders() }.isEmpty()) {
+        testModules = listOf(this)
     }
-    return testModule
+    return testModules
 }
 
-private fun findPotentialModuleForTests(project: Project, srcModule: Module): Module {
+private fun findPotentialModulesForTests(project: Project, srcModule: Module): List<Module> {
+    val modules = mutableListOf<Module>()
     for (module in ModuleManager.getInstance(project).modules) {
         if (srcModule == TestModuleProperties.getInstance(module).productionModule) {
-            return module
+            modules += module
         }
     }
+    if (modules.isNotEmpty()) return modules
 
     if (srcModule.suitableTestSourceFolders().isEmpty()) {
         val modules = mutableSetOf<Module>()
@@ -109,9 +111,9 @@ private fun findPotentialModuleForTests(project: Project, srcModule: Module): Mo
         modules.remove(srcModule)
 
         val modulesWithTestRoot = modules.filter { it.suitableTestSourceFolders().isNotEmpty() }
-        if (modulesWithTestRoot.size == 1) return modulesWithTestRoot[0]
+        if (modulesWithTestRoot.size == 1) return modulesWithTestRoot
     }
-    return srcModule
+    return listOf(srcModule)
 }
 
 /**
@@ -145,12 +147,13 @@ private fun Module.suitableTestSourceFolders(codegenLanguage: CodegenLanguage): 
         // Heuristics: User is more likely to choose the shorter path
         .sortedBy { it.url.length }
 }
-fun Project.isGradle() = GradleProjectInfo.getInstance(this).isBuildWithGradle
+val Project.isBuildWithGradle
+    get() = GradleProjectInfo.getInstance(this).isBuildWithGradle
 
 private const val dedicatedTestSourceRootName = "utbot_tests"
 fun Module.addDedicatedTestRoot(testSourceRoots: MutableList<VirtualFile>): VirtualFile? {
     // Don't suggest new test source roots for Gradle project where 'unexpected' test roots won't work
-    if (project.isGradle()) return null
+    if (project.isBuildWithGradle) return null
     // Dedicated test root already exists
     if (testSourceRoots.any { file -> file.name == dedicatedTestSourceRootName }) return null
 
@@ -180,7 +183,7 @@ private fun getOrCreateTestResourcesUrl(module: Module, testSourceRoot: VirtualF
             }
             // taking the source folder that has the maximum common prefix
             // with `testSourceRoot`, which was selected by the user
-            .maxBy { sourceFolder ->
+            .maxByOrNull { sourceFolder ->
                 val sourceFolderPath = sourceFolder.file?.path ?: ""
                 val testSourceRootPath = testSourceRoot?.path ?: ""
                 sourceFolderPath.commonPrefixWith(testSourceRootPath).length

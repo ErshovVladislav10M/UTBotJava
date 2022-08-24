@@ -184,6 +184,11 @@ object UtSettings {
     var testDisplayName by getBooleanProperty(true)
 
     /**
+     * Generate summaries using plugin's custom JavaDoc tags.
+     */
+    var useCustomJavaDocTags by getBooleanProperty(false)
+
+    /**
      * Enable the machine learning module to generate summaries for methods under test.
      * True by default.
      *
@@ -212,8 +217,6 @@ object UtSettings {
     /**
      * Activate or deactivate substituting static fields values set in static initializer
      * with symbolic variable to try to set them another value than in initializer.
-     *
-     * We should not try to substitute in parametrized tests, for example
      */
     var substituteStaticsWithSymbolicVariable by getBooleanProperty(true)
 
@@ -367,6 +370,11 @@ object UtSettings {
     var rewardModelPath by getStringProperty("../models/0")
 
     /**
+     * Full class name of the class containing the configuration for the ML models to solve path selection task.
+     */
+    var analyticsConfigurationClassPath by getStringProperty("org.utbot.AnalyticsConfiguration")
+
+    /**
      * Number of model iterations that will be used during ContestEstimator
      */
     var iterations by getIntProperty(1)
@@ -390,6 +398,13 @@ object UtSettings {
      * Flag that indicates whether tests for synthetic methods (values, valueOf in enums) should be generated, or not
      */
     var skipTestGenerationForSyntheticMethods by getBooleanProperty(true)
+
+    /**
+     * Flag that indicates whether should we branch on and set static fields from trusted libraries or not.
+     *
+     * @see [org.utbot.common.WorkaroundReason.IGNORE_STATICS_FROM_TRUSTED_LIBRARIES]
+     */
+    var ignoreStaticsFromTrustedLibraries by getBooleanProperty(true)
 
     override fun toString(): String =
         settingsValues

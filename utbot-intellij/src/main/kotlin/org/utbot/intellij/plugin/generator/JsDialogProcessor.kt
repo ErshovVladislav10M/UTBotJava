@@ -22,7 +22,7 @@ import org.utbot.common.runIgnoringCancellationException
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.JsDialogWindow
 import org.utbot.intellij.plugin.ui.actions.JsActionMethods
-import org.utbot.intellij.plugin.ui.utils.testModule
+import org.utbot.intellij.plugin.ui.utils.testModules
 
 object JsDialogProcessor {
 
@@ -55,13 +55,13 @@ object JsDialogProcessor {
         focusedMethod: JSMemberInfo?,
         filePath: String,
     ): JsDialogWindow {
-        val testModule = srcModule.testModule(project)
+        val testModules = srcModule.testModules(project)
 
         return JsDialogWindow(
             JsTestsModel(
                 project,
                 srcModule,
-                testModule,
+                testModules,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
             ).apply {

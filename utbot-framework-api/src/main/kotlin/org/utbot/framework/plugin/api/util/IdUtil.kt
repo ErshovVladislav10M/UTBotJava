@@ -14,6 +14,8 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Type
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
@@ -117,6 +119,9 @@ val ClassId.isFloatType: Boolean
 val ClassId.isDoubleType: Boolean
     get() = this == doubleClassId || this == doubleWrapperClassId
 
+val ClassId.isClassType: Boolean
+    get() = this == classClassId
+
 val voidClassId = ClassId("void")
 val booleanClassId = ClassId("boolean")
 val byteClassId = ClassId("byte")
@@ -137,6 +142,8 @@ val intWrapperClassId = java.lang.Integer::class.id
 val longWrapperClassId = java.lang.Long::class.id
 val floatWrapperClassId = java.lang.Float::class.id
 val doubleWrapperClassId = java.lang.Double::class.id
+
+val classClassId = java.lang.Class::class.id
 
 // We consider void wrapper as primitive wrapper
 // because voidClassId is considered primitive here
@@ -261,6 +268,13 @@ val Class<*>.id: ClassId
         else -> ClassId(name)
     }
 
+/**
+ * We should specially handle the case of a generic type that is a [Type] and not a [Class].
+ * Returns a [ClassId] for the corresponding raw type.
+ */
+val ParameterizedType.id: ClassId
+    get() = ClassId(this.rawType.typeName)
+
 val KClass<*>.id: ClassId
     get() = java.id
 
@@ -284,6 +298,9 @@ val ClassId.isMap: Boolean
 
 val ClassId.isIterableOrMap: Boolean
     get() = isIterable || isMap
+
+val ClassId.isEnum: Boolean
+    get() = jClass.isEnum
 
 fun ClassId.findFieldByIdOrNull(fieldId: FieldId): Field? {
     if (isNotSubtypeOf(fieldId.declaringClass)) {

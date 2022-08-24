@@ -1,6 +1,7 @@
 package org.utbot.intellij.plugin.models
 
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdkVersion
 import com.intellij.openapi.vfs.VirtualFile
@@ -14,25 +15,23 @@ import org.utbot.framework.plugin.api.MockFramework
 import org.utbot.framework.plugin.api.MockStrategyApi
 import org.utbot.framework.util.ConflictTriggers
 import org.utbot.intellij.plugin.ui.utils.BaseTestsModel
+import org.utbot.intellij.plugin.ui.utils.jdkVersion
 
-class GenerateTestsModel(
-    project: Project,
-    srcModule: Module,
-    testModule: Module,
-    val jdkVersion: JavaSdkVersion,
+data class GenerateTestsModel(
+    override val project: Project,
+    override val srcModule: Module,
+    override val potentialTestModules: List<Module>,
     var srcClasses: Set<PsiClass>,
     var selectedMethods: Set<MemberInfo>?,
     var timeout: Long,
     var generateWarningsForStaticMocking: Boolean = false,
     var fuzzingValue: Double = 0.05,
-    var forceMockHappened: Boolean = false,
-    var forceStaticMockHappened: Boolean = false,
-    var hasTestFrameworkConflict: Boolean = false,
 ) : BaseTestsModel(
     project,
     srcModule,
-    testModule
+    potentialTestModules,
 ) {
+
     var testPackageName: String? = null
     lateinit var testFramework: TestFramework
     lateinit var mockStrategy: MockStrategyApi
@@ -50,6 +49,15 @@ class GenerateTestsModel(
     val isMultiPackage: Boolean by lazy {
         srcClasses.map { it.packageName }.distinct().size != 1
     }
+    var runGeneratedTestsWithCoverage : Boolean = false
+
+    val jdkVersion: JavaSdkVersion?
+        get() = try {
+            testModule.jdkVersion()
+        } catch (e: IllegalStateException) {
+            // Just ignore it here, notification will be shown in org.utbot.intellij.plugin.ui.utils.ModuleUtilsKt.jdkVersionBy
+            null
+        }
 }
 
 val PsiClass.packageName: String get() = this.containingFile.containingDirectory.getPackage()?.qualifiedName ?: ""

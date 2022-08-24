@@ -17,6 +17,7 @@ import org.utbot.framework.codegen.model.tree.CgForEachLoopBuilder
 import org.utbot.framework.codegen.model.tree.CgForLoopBuilder
 import org.utbot.framework.codegen.model.tree.CgIfStatement
 import org.utbot.framework.codegen.model.tree.CgInnerBlock
+import org.utbot.framework.codegen.model.tree.CgIsInstance
 import org.utbot.framework.codegen.model.tree.CgLogicalAnd
 import org.utbot.framework.codegen.model.tree.CgLogicalOr
 import org.utbot.framework.codegen.model.tree.CgMultilineComment
@@ -174,6 +175,10 @@ class JsCgStatementConstructorImpl(context: CgContext) :
     override fun CgTryCatch.finally(init: () -> Unit): CgTryCatch {
         val finallyBlock = block(init)
         return this.copy(finally = finallyBlock)
+    }
+
+    override fun CgExpression.isInstance(value: CgExpression): CgIsInstance {
+        TODO("Not yet implemented")
     }
 
     // TODO MINOR: check whether js has inner blocks

@@ -18,7 +18,7 @@ import org.w3c.dom.Element
 
 private val logger = KotlinLogging.logger {}
 
-class JsCoverageCommand : CliktCommand(name = "coverageJS", help = "Get tests coverage for the specified file") {
+class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests coverage for the specified file") {
 
     private val testFile by argument(
         help = "Target test file path"

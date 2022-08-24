@@ -11,6 +11,7 @@ import org.utbot.framework.plugin.api.ClassId
 import org.utbot.framework.plugin.api.ConstructorId
 import org.utbot.framework.plugin.api.DocClassLinkStmt
 import org.utbot.framework.plugin.api.DocCodeStmt
+import org.utbot.framework.plugin.api.DocCustomTagStatement
 import org.utbot.framework.plugin.api.DocMethodLinkStmt
 import org.utbot.framework.plugin.api.DocPreTagStatement
 import org.utbot.framework.plugin.api.DocRegularStmt
@@ -19,6 +20,7 @@ import org.utbot.framework.plugin.api.ExecutableId
 import org.utbot.framework.plugin.api.FieldId
 import org.utbot.framework.plugin.api.MethodId
 import org.utbot.framework.plugin.api.TypeParameters
+import org.utbot.framework.plugin.api.UtModel
 import org.utbot.framework.plugin.api.util.booleanClassId
 import org.utbot.framework.plugin.api.util.id
 import org.utbot.framework.plugin.api.util.intClassId
@@ -51,6 +53,7 @@ interface CgElement {
             is CgMultilineComment -> visit(element)
             is CgDocumentationComment -> visit(element)
             is CgDocPreTagStatement -> visit(element)
+            is CgCustomTagStatement -> visit(element)
             is CgDocCodeStmt -> visit(element)
             is CgDocRegularStmt -> visit(element)
             is CgDocClassLinkStmt -> visit(element)
@@ -74,6 +77,7 @@ interface CgElement {
             is CgDeclaration -> visit(element)
             is CgAssignment -> visit(element)
             is CgTypeCast -> visit(element)
+            is CgIsInstance -> visit(element)
             is CgThisInstance -> visit(element)
             is CgNotNullAssertion -> visit(element)
             is CgVariable -> visit(element)
@@ -120,6 +124,8 @@ data class CgTestClass(
     val superclass: ClassId?,
     val interfaces: List<ClassId>,
     val body: CgTestClassBody,
+    val isStatic: Boolean,
+    val isNested: Boolean
 ) : CgElement {
     val packageName = id.packageName
     val simpleName = id.simpleName
@@ -127,7 +133,8 @@ data class CgTestClass(
 
 data class CgTestClassBody(
     val testMethodRegions: List<CgExecutableUnderTestCluster>,
-    val utilsRegion: List<CgRegion<CgElement>>
+    val utilsRegion: List<CgRegion<CgElement>>,
+    val nestedClassRegions: List<CgRegion<CgTestClass>>
 ) : CgElement {
     val regions: List<CgRegion<*>>
         get() = testMethodRegions
@@ -330,6 +337,11 @@ class CgDocPreTagStatement(content: List<CgDocStatement>) : CgDocTagStatement(co
     override fun hashCode(): Int = content.hashCode()
 }
 
+/**
+ * Represents a type for statements containing custom JavaDoc tags.
+ */
+data class CgCustomTagStatement(val statements: List<CgDocStatement>) : CgDocTagStatement(statements)
+
 class CgDocCodeStmt(val stmt: String) : CgDocStatement() {
     override fun isEmpty(): Boolean = stmt.isEmpty()
 
@@ -373,6 +385,10 @@ fun convertDocToCg(stmt: DocStatement): CgDocStatement {
         is DocPreTagStatement -> {
             val stmts = stmt.content.map { convertDocToCg(it) }
             CgDocPreTagStatement(content = stmts)
+        }
+        is DocCustomTagStatement -> {
+            val stmts = stmt.content.map { convertDocToCg(it) }
+            CgCustomTagStatement(statements = stmts)
         }
         is DocRegularStmt -> CgDocRegularStmt(stmt = stmt.stmt)
         is DocClassLinkStmt -> CgDocClassLinkStmt(className = stmt.className)
@@ -536,6 +552,16 @@ class CgTypeCast(
     override val type: ClassId = targetType
 }
 
+/**
+ * Represents [java.lang.Class.isInstance] method.
+ */
+class CgIsInstance(
+    val classExpression: CgExpression,
+    val value: CgExpression,
+): CgExpression {
+    override val type: ClassId = booleanClassId
+}
+
 // Value
 
 // TODO in general CgLiteral is not CgReferenceExpression because it can hold primitive values
@@ -630,6 +656,7 @@ data class CgParameterDeclaration(
 sealed class CgParameterKind {
     object ThisInstance : CgParameterKind()
     data class Argument(val index: Int) : CgParameterKind()
+    data class Statics(val model: UtModel) : CgParameterKind()
     object ExpectedResult : CgParameterKind()
     object ExpectedException : CgParameterKind()
 }

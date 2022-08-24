@@ -13,11 +13,12 @@ import com.intellij.util.ArrayUtil
 import java.io.File
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JList
+import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import org.utbot.common.PathUtil
 import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.intellij.plugin.ui.utils.BaseTestsModel
 import org.utbot.intellij.plugin.ui.utils.addDedicatedTestRoot
-import org.utbot.intellij.plugin.ui.utils.isGradle
+import org.utbot.intellij.plugin.ui.utils.isBuildWithGradle
 import org.utbot.intellij.plugin.ui.utils.suitableTestSourceRoots
 
 class TestFolderComboWithBrowseButton(private val model: BaseTestsModel) : ComboboxWithBrowseButton() {
@@ -25,7 +26,7 @@ class TestFolderComboWithBrowseButton(private val model: BaseTestsModel) : Combo
     private val SET_TEST_FOLDER = "set test folder"
 
     init {
-        if (model.project.isGradle()) {
+        if (model.project.isBuildWithGradle) {
             setButtonEnabled(false)
             button.toolTipText = "Please define custom test source root via Gradle"
         }
@@ -51,8 +52,13 @@ class TestFolderComboWithBrowseButton(private val model: BaseTestsModel) : Combo
             }
         }
 
-        val testRoots = model.testModule.suitableTestSourceRoots().toMutableList()
+        val suggestedModules =
+            if (model.project.isBuildWithGradle) model.project.allModules() else model.potentialTestModules
+
+        val testRoots = suggestedModules.flatMap { it.suitableTestSourceRoots().toList() }.toMutableList()
+        // this method is blocked for Gradle, where multiple test modules can exist
         model.testModule.addDedicatedTestRoot(testRoots)
+
         if (testRoots.isNotEmpty()) {
             configureRootsCombo(testRoots)
         } else {
@@ -62,7 +68,7 @@ class TestFolderComboWithBrowseButton(private val model: BaseTestsModel) : Combo
         addActionListener {
             val testSourceRoot = createNewTestSourceRoot(model)
             testSourceRoot?.let {
-                model.testSourceRoot = it
+                model.setSourceRootAndFindTestModule(it)
 
                 if (childComponent.itemCount == 1 && childComponent.selectedItem == SET_TEST_FOLDER) {
                     newItemList(setOf(it))
@@ -89,6 +95,7 @@ class TestFolderComboWithBrowseButton(private val model: BaseTestsModel) : Combo
         // unfortunately, Gradle creates Kotlin test source root with Java source root type, so type is misleading
         val selectedRoot = testRoots.first()
 
+        // do not update model.testModule here, because fake test source root could have been chosen
         model.testSourceRoot = selectedRoot
         newItemList(testRoots.toSet())
     }

@@ -2,6 +2,7 @@ package fuzzer.providers
 
 import fuzzer.providers.JsPrimitivesModelProvider.matchClassId
 import fuzzer.providers.JsPrimitivesModelProvider.primitivesForString
+import fuzzer.providers.JsStringModelProvider.mutate
 import fuzzer.providers.JsStringModelProvider.random
 import org.utbot.framework.plugin.api.JsClassId
 import org.utbot.framework.plugin.api.JsMultipleClassId
@@ -12,7 +13,6 @@ import org.utbot.framework.plugin.api.util.toJsClassId
 import org.utbot.fuzzer.FuzzedMethodDescription
 import org.utbot.fuzzer.FuzzedParameter
 import org.utbot.fuzzer.ModelProvider
-import org.utbot.fuzzer.providers.StringConstantModelProvider.mutate
 
 object JsMultipleTypesModelProvider : ModelProvider {
     override fun generate(description: FuzzedMethodDescription) : Sequence<FuzzedParameter> = sequence {

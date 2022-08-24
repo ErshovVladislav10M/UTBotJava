@@ -214,9 +214,6 @@ class JsTestGenerator(
                         stateBefore = initEnv,
                         stateAfter = initEnv,
                         result = utExecResult,
-                        instrumentation = emptyList(),
-                        path = mutableListOf(),
-                        fullPath = emptyList(),
                     )
                 )
             }
@@ -295,7 +292,7 @@ class JsTestGenerator(
                 const fileUnderTest = require("./$importText")
                     
                 let prefix = "$prefix"
-                let res = fileUnderTest.$callString
+                let res = $callString
                 if (typeof res == "string") $temp
                 else console.log(prefix, res)
             """.trimIndent()
@@ -312,9 +309,9 @@ class JsTestGenerator(
     ): String {
         val initClass = containingClass?.let {
             if (!method.isStatic) {
-                "new ${it}()."
-            } else "$it."
-        } ?: ""
+                "new fileUnderTest.${it}()."
+            } else "fileUnderTest.$it."
+        } ?: "fileUnderTest."
         var callString = "$initClass${method.name}("
         fuzzedValue.forEach { value ->
             // Explicit string wrap with "" is needed.

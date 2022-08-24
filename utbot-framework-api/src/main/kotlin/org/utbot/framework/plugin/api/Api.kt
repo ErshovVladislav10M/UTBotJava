@@ -51,6 +51,8 @@ import soot.jimple.Stmt
 import java.io.File
 import java.lang.reflect.Modifier
 import org.utbot.framework.plugin.api.util.toJsClassId
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
 import kotlin.jvm.internal.CallableReference
 import kotlin.reflect.KCallable
 import kotlin.reflect.KClass
@@ -58,6 +60,8 @@ import kotlin.reflect.KFunction
 import kotlin.reflect.full.instanceParameter
 import kotlin.reflect.jvm.javaConstructor
 import kotlin.reflect.jvm.javaType
+
+const val SYMBOLIC_NULL_ADDR: Int = 0
 
 data class UtMethod<R>(
     val callable: KCallable<R>,
@@ -131,8 +135,28 @@ data class Step(
  */
 sealed class UtResult
 
+
 /**
  * Execution.
+ *
+ * Contains:
+ * - execution parameters, including thisInstance;
+ * - result;
+ * - coverage information (instructions) if this execution was obtained from the concrete execution.
+ * - comments, method names and display names created by utbot-summary module.
+ */
+open class UtExecution(
+    val stateBefore: EnvironmentModels,
+    val stateAfter: EnvironmentModels,
+    val result: UtExecutionResult,
+    val coverage: Coverage? = null,
+    var summary: List<DocStatement>? = null,
+    var testMethodName: String? = null,
+    var displayName: String? = null
+) : UtResult()
+
+/**
+ * Symbolic execution.
  *
  * Contains:
  * - execution parameters, including thisInstance;
@@ -140,22 +164,20 @@ sealed class UtResult
  * - static fields changed during execution;
  * - required instrumentation details (such as randoms, time, static methods).
  * - coverage information (instructions) if this execution was obtained from the concrete execution.
- * - the engine type that created this execution.
  * - comments, method names and display names created by utbot-summary module.
  */
-data class UtExecution(
-    val stateBefore: EnvironmentModels,
-    val stateAfter: EnvironmentModels,
-    val result: UtExecutionResult,
+class UtSymbolicExecution(
+    stateBefore: EnvironmentModels,
+    stateAfter: EnvironmentModels,
+    result: UtExecutionResult,
     val instrumentation: List<UtInstrumentation>,
     val path: MutableList<Step>,
     val fullPath: List<Step>,
-    val coverage: Coverage? = null,
-    val createdBy: UtExecutionCreator? = null,
-    var summary: List<DocStatement>? = null,
-    var testMethodName: String? = null,
-    var displayName: String? = null,
-) : UtResult() {
+    coverage: Coverage? = null,
+    summary: List<DocStatement>? = null,
+    testMethodName: String? = null,
+    displayName: String? = null
+) : UtExecution(stateBefore, stateAfter, result, coverage, summary, testMethodName, displayName) {
     /**
      * By design the 'before' and 'after' states contain info about the same fields.
      * It means that it is not possible for a field to be present at 'before' and to be absent at 'after'.
@@ -165,7 +187,7 @@ data class UtExecution(
         get() = stateBefore.statics.keys
 
     override fun toString(): String = buildString {
-        append("UtExecution(")
+        append("UtSymbolicExecution(")
         appendLine()
 
         append("<State before>:")
@@ -186,6 +208,21 @@ data class UtExecution(
         appendOptional("instrumentation", instrumentation)
         append(")")
     }
+
+    fun copy(stateAfter: EnvironmentModels, result: UtExecutionResult, coverage: Coverage): UtResult {
+        return UtSymbolicExecution(
+            stateBefore,
+            stateAfter,
+            result,
+            instrumentation,
+            path,
+            fullPath,
+            coverage,
+            summary,
+            testMethodName,
+            displayName
+        )
+    }
 }
 
 open class EnvironmentModels(
@@ -205,7 +242,7 @@ open class EnvironmentModels(
 }
 
 /**
- * Represents missing state. Useful for [UtConcreteExecutionFailure] because it does not have [UtExecution.stateAfter]
+ * Represents missing state. Useful for [UtConcreteExecutionFailure] because it does not have [UtSymbolicExecution.stateAfter]
  */
 object MissingState : EnvironmentModels(
     thisInstance = null,
@@ -268,6 +305,27 @@ fun UtModel.hasDefaultValue() =
 fun UtModel.isMockModel() = this is UtCompositeModel && isMock
 
 /**
+ * Get model id (symbolic null value for UtNullModel)
+ * or null if model has no id (e.g., a primitive model) or the id is null.
+ */
+fun UtModel.idOrNull(): Int? = when (this) {
+    is UtNullModel -> SYMBOLIC_NULL_ADDR
+    is UtReferenceModel -> id
+    else -> null
+}
+
+/**
+ * Returns the model id if it is available, or throws an [IllegalStateException].
+ */
+@OptIn(ExperimentalContracts::class)
+fun UtModel?.getIdOrThrow(): Int {
+    contract {
+        returns() implies (this@getIdOrThrow != null)
+    }
+    return this?.idOrNull() ?: throw IllegalStateException("Model id must not be null: $this")
+}
+
+/**
  * Model for nulls.
  */
 data class UtNullModel(
@@ -308,20 +366,24 @@ object UtVoidModel : UtModel(voidClassId)
  * Model for enum constant
  */
 data class UtEnumConstantModel(
+    override val id: Int?,
     override val classId: ClassId,
     val value: Enum<*>
-) : UtModel(classId) {
-    override fun toString(): String = "$value"
+) : UtReferenceModel(id, classId) {
+    // Model id is included for debugging purposes
+    override fun toString(): String = "$value@$id"
 }
 
 /**
  * Model for class reference
  */
 data class UtClassRefModel(
+    override val id: Int?,
     override val classId: ClassId,
     val value: Class<*>
-) : UtModel(classId) {
-    override fun toString(): String = "$value"
+) : UtReferenceModel(id, classId) {
+    // Model id is included for debugging purposes
+    override fun toString(): String = "$value@$id"
 }
 
 /**
@@ -524,12 +586,12 @@ data class UtDirectSetFieldModel(
     val fieldModel: UtModel,
 ) : UtStatementModel(instance) {
     override fun toString(): String = withToStringThreadLocalReentrancyGuard {
-            val modelRepresentation = when (fieldModel) {
-                is UtAssembleModel -> fieldModel.modelName
-                else -> fieldModel.toString()
-            }
-            "${instance.modelName}.${fieldId.name} = $modelRepresentation"
+        val modelRepresentation = when (fieldModel) {
+            is UtAssembleModel -> fieldModel.modelName
+            else -> fieldModel.toString()
         }
+        "${instance.modelName}.${fieldId.name} = $modelRepresentation"
+    }
 
 }
 
@@ -1161,7 +1223,7 @@ class BuiltinMethodId(
 
 open class TypeParameters(val parameters: List<ClassId> = emptyList())
 
-class WildcardTypeParameter: TypeParameters(emptyList())
+class WildcardTypeParameter : TypeParameters(emptyList())
 
 interface CodeGenerationSettingItem {
     val displayName: String
@@ -1295,6 +1357,7 @@ enum class CodegenLanguage(
                 "-cp", classPath,
                 "-XDignore.symbol.file" // to let javac use classes from rt.jar
             ).plus(sourcesFiles)
+
             KOTLIN -> listOf("-d", buildDirectory, "-jvm-target", jvmTarget, "-cp", classPath).plus(sourcesFiles)
             JS -> throw UnsupportedOperationException()
         }
@@ -1375,6 +1438,9 @@ class DocPreTagStatement(content: List<DocStatement>) : DocTagStatement(content)
     override fun hashCode(): Int = content.hashCode()
 }
 
+data class DocCustomTagStatement(val statements: List<DocStatement>) : DocTagStatement(statements) {
+    override fun toString(): String = content.joinToString(separator = "")
+}
 
 open class DocClassLinkStmt(val className: String) : DocStatement() {
     override fun toString(): String = className

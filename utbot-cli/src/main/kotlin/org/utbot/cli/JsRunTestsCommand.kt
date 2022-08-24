@@ -10,14 +10,14 @@ import utils.JsCmdExec
 
 private val logger = KotlinLogging.logger {}
 
-class JsRunTestsCommand : CliktCommand(name = "runJS", help = "Runs tests for the specified file or directory") {
+class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for the specified file or directory") {
 
     private val fileWithTests by option(
-        "--fileOrDir",
+        "--fileOrDir", "-f",
         help = "Specifies a file or directory with tests"
     ).required()
 
-    private val testFramework by option("--test-framework", help = "Test framework to be used")
+    private val testFramework by option("--test-framework", "-t", help = "Test framework to be used")
         .choice("mocha")
         .default("mocha")
 
