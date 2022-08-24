@@ -13,7 +13,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.impl.file.PsiDirectoryFactory
 import com.intellij.util.concurrency.AppExecutorUtil
-import java.util.concurrent.TimeUnit
 import org.jetbrains.kotlin.idea.util.application.invokeLater
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
@@ -65,7 +64,6 @@ object JsDialogProcessor {
                 testModule,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
-                1000000
             ).apply {
                 containingFilePath = filePath
             }
@@ -76,32 +74,25 @@ object JsDialogProcessor {
         val normalizedContainingFilePath = containingFilePath.replace("/", "\\")
         (object : Task.Backgroundable(model.project, "Generate tests") {
             override fun run(indicator: ProgressIndicator) {
-
-                val startTime = System.currentTimeMillis()
-                val secondsTimeout = TimeUnit.MILLISECONDS.toSeconds(model.timeout)
-                val totalTimeout = model.timeout * model.selectedMethods.size
-
                 indicator.isIndeterminate = false
                 indicator.text = "Generate tests: read classes"
-
-                val timerHandler = AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay({
-                    indicator.fraction = (System.currentTimeMillis() - startTime).toDouble() / totalTimeout
-                }, 0, 500, TimeUnit.MILLISECONDS)
-
                 runIgnoringCancellationException {
-                    runBlockingWithCancellationPredicate({ indicator.isCanceled || System.currentTimeMillis() - startTime > 5000 }) {
+                    runBlockingWithCancellationPredicate({ indicator.isCanceled }) {
                         val testDir = PsiDirectoryFactory.getInstance(project).createDirectory(
                             model.testSourceRoot!!
                         )
-                        val testFileName = normalizedContainingFilePath.substringAfterLast(File.separator).replace(Regex(".js"), "Test.js")
+                        val testFileName = normalizedContainingFilePath.substringAfterLast(File.separator)
+                            .replace(Regex(".js"), "Test.js")
                         val testGenerator = JsTestGenerator(
                             fileText = editor.document.text,
                             sourceFilePath = normalizedContainingFilePath,
                             projectPath = model.project.basePath?.replace("/", "\\")
                                 ?: throw IllegalStateException("Can't access project path."),
-                            selectedMethods = runReadAction { model.selectedMethods.map {
-                                it.member.name!!
-                            }},
+                            selectedMethods = runReadAction {
+                                model.selectedMethods.map {
+                                    it.member.name!!
+                                }
+                            },
                             parentClassName = runReadAction {
                                 val name = (model.selectedMethods.first().member.parent as ES6Class).name
                                 if (name == "toplevelHack") null else name
@@ -110,7 +101,6 @@ object JsDialogProcessor {
                             exportsManager = partial(::manageExports, editor, project)
                         )
 
-                        timerHandler.cancel(true)
                         indicator.fraction = indicator.fraction.coerceAtLeast(0.9)
                         indicator.text = "Generate code for tests"
 
@@ -135,8 +125,8 @@ object JsDialogProcessor {
         }).queue()
     }
 
-    private fun <A, B, C>partial(f: (A, B, C) -> Unit, a: A, b: B): (C) -> Unit {
-        return {c: C -> f(a, b, c)}
+    private fun <A, B, C> partial(f: (A, B, C) -> Unit, a: A, b: B): (C) -> Unit {
+        return { c: C -> f(a, b, c) }
     }
 
     private fun manageExports(editor: Editor, project: Project, exports: List<String>) {

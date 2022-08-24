@@ -3,7 +3,6 @@ package org.utbot.intellij.plugin.models
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiFile
 import org.utbot.framework.codegen.TestFramework
 import org.utbot.intellij.plugin.ui.utils.BaseTestsModel
 
@@ -13,7 +12,6 @@ class JsTestsModel(
     testModule: Module,
     val fileMethods: Set<JSMemberInfo>,
     var selectedMethods: Set<JSMemberInfo>,
-    var timeout: Long,
 ) : BaseTestsModel(
     project,
     srcModule,
