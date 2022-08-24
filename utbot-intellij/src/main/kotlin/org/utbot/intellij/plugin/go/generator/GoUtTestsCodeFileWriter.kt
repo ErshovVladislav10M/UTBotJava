@@ -33,7 +33,7 @@ object GoUtTestsCodeFileWriter {
         try {
             val sourcePsiFile = findPsiFile(model, sourceFile)
             val testsPsiFile = createTestsFileNearToSource(sourcePsiFile, testsFileName) ?: return
-            WriteCommandAction.runWriteCommandAction(model.project, "Generate Go tests with UtBot", null, {
+            WriteCommandAction.runWriteCommandAction(model.project, "Generate Go Tests with UtBot", null, {
                 try {
                     writeGeneratedTestsFileCode(testsPsiFile, generatedTestsFileCode)
                 } catch (e: IncorrectOperationException) {

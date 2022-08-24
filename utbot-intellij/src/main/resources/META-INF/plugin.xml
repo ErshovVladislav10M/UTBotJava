@@ -16,9 +16,6 @@
     <!--Optional dependency on org.jetbrains.plugins.go-->
     <depends optional="true" config-file="withGo.xml">org.jetbrains.plugins.go</depends>
 
-    <!--Optional dependency on org.jetbrains.plugins.go-template-->
-    <depends optional="true" config-file="withGoTemplate.xml">org.jetbrains.plugins.go-template</depends>
-
     <actions>
         <action id="org.utbot.intellij.plugin.ui.actions.GenerateTestsAction"
                 class="org.utbot.intellij.plugin.ui.actions.GenerateTestsAction"
@@ -40,6 +37,9 @@
         <registryKey defaultValue="false" description="Enable editing Kotlin test files" key="kotlin.ultra.light.classes.empty.text.range"/>
         <postStartupActivity implementation="org.utbot.intellij.plugin.ui.GotItTooltipActivity"/>
         <projectModelModifier implementation="org.utbot.intellij.plugin.util.UtProjectModelModifier"/>
+        <!--Documentation-->
+        <customJavadocTagProvider implementation="org.utbot.intellij.plugin.javadoc.UtCustomJavaDocTagProvider"/>
+        <lang.documentationProvider language="JAVA" order="first" implementationClass="org.utbot.intellij.plugin.javadoc.UtDocumentationProvider"/>
     </extensions>
 
     <!-- Minimum and maximum build of IDE compatible with the plugin -->

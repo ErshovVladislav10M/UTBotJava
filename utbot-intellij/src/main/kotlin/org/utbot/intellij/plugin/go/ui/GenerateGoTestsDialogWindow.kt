@@ -3,6 +3,7 @@ package org.utbot.intellij.plugin.go.ui
 import com.goide.psi.GoFunctionOrMethodDeclaration
 import com.goide.refactor.ui.GoDeclarationInfo
 import com.goide.sdk.combobox.GoSdkChooserCombo
+import com.intellij.facet.ui.ValidationResult
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
@@ -10,6 +11,7 @@ import com.intellij.ui.layout.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.utbot.intellij.plugin.go.models.GenerateGoTestsModel
+import org.utbot.intellij.plugin.go.ui.utils.resolveGoExecutablePath
 import javax.swing.JComponent
 
 // This class is highly inspired by GenerateTestsDialogWindow.
@@ -21,13 +23,13 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
         this.preferredScrollableViewportSize = JBUI.size(-1, height)
     }
 
-    private val projectGoSdkField = GoSdkChooserCombo()
+    private val projectGoSdkField = GoSdkChooserCombo({ null }, { true }, { ValidationResult.OK })
 
     private lateinit var panel: DialogPanel
 
     init {
-        title = "Generate tests with UtBot"
-        setResizable(false)
+        title = "Generate Tests with UtBot"
+        isResizable = false
         init()
     }
 
@@ -48,7 +50,7 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
 
     override fun doOKAction() {
         model.selectedFunctions = targetFunctionsTable.selectedMemberInfos.fromInfos()
-        model.goExecutableAbsolutePath = projectGoSdkField.sdk.goExecutablePath!!
+        model.goExecutableAbsolutePath = projectGoSdkField.sdk.resolveGoExecutablePath()!!
         super.doOKAction()
     }
 
@@ -77,7 +79,7 @@ class GenerateGoTestsDialogWindow(val model: GenerateGoTestsModel) : DialogWrapp
 
     @Suppress("DuplicatedCode") // This method is highly inspired by GenerateTestsDialogWindow.doValidate().
     override fun doValidate(): ValidationInfo? {
-        projectGoSdkField.sdk.goExecutablePath
+        projectGoSdkField.sdk.resolveGoExecutablePath()
             ?: return ValidationInfo(
                 "Go SDK is not configured",
                 projectGoSdkField.childComponent
