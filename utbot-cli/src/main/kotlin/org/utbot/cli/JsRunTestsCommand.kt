@@ -21,6 +21,7 @@ class JsRunTestsCommand : CliktCommand(name = "runJS", help = "Runs tests for th
         .choice("mocha")
         .default("mocha")
 
+
     override fun run() {
         when (testFramework) {
             "mocha" -> {
@@ -30,7 +31,6 @@ class JsRunTestsCommand : CliktCommand(name = "runJS", help = "Runs tests for th
                     logger.error { "An error has occurred while running tests for $fileWithTests : $errorText" }
                 } else {
                     logger.info { text.readText() }
-
                 }
             }
         }

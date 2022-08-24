@@ -58,7 +58,11 @@ class CoverageService(
         val dir = File("$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id")
         dir.mkdir()
         val (_, error) = JsCmdExec.runCommand(
-            "nyc --report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" --reporter=\"json\" --temp-dir=\"${dir.absolutePath}${File.separator}cache$id\" node $filePath",
+            "nyc " +
+                "--report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" " +
+                "--reporter=\"json\" " +
+                "--temp-dir=\"${dir.absolutePath}${File.separator}cache$id\" " +
+                "node $filePath",
             workingDir,
             true,
         )
