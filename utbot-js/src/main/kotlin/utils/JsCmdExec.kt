@@ -20,7 +20,10 @@ object JsCmdExec {
         }
         val process = builder.start()
         if (shouldWait) {
-            if(!process.waitFor(timeout, TimeUnit.MILLISECONDS)) throw TimeoutException("")
+            if(!process.waitFor(timeout, TimeUnit.MILLISECONDS)) {
+                process.destroy()
+                throw TimeoutException("")
+            }
         }
         return process.inputStream.bufferedReader() to process.errorStream.bufferedReader()
     }
