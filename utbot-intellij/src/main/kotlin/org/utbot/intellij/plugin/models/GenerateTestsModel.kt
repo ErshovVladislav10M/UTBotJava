@@ -17,19 +17,20 @@ import org.utbot.framework.util.ConflictTriggers
 import org.utbot.intellij.plugin.ui.utils.BaseTestsModel
 import org.utbot.intellij.plugin.ui.utils.jdkVersion
 
-data class GenerateTestsModel(
+class GenerateTestsModel(
     override val project: Project,
     override val srcModule: Module,
-    override val potentialTestModules: List<Module>,
+    potentialTestModules: List<Module>,
     var srcClasses: Set<PsiClass>,
     var selectedMethods: Set<MemberInfo>?,
-    var timeout: Long,
+    override var timeout: Long,
     var generateWarningsForStaticMocking: Boolean = false,
     var fuzzingValue: Double = 0.05,
 ) : BaseTestsModel(
     project,
     srcModule,
     potentialTestModules,
+    timeout,
 ) {
 
     var testPackageName: String? = null

@@ -9,13 +9,19 @@ import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.newvfs.impl.FakeVirtualFile
+import com.intellij.ui.ContextHelpLabel
+import com.intellij.ui.JBIntSpinner
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.Panel
+import com.intellij.ui.layout.Cell
 import com.intellij.ui.layout.panel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.io.File
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.text.JTextComponent
 import org.jetbrains.kotlin.idea.core.util.toVirtualFile
 import org.utbot.framework.codegen.Mocha
 import org.utbot.framework.codegen.TestFramework
@@ -24,6 +30,8 @@ import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.components.TestFolderComboWithBrowseButton
 import utils.JsCmdExec
 import kotlin.concurrent.thread
+
+private const val MINIMUM_TIMEOUT_VALUE_IN_SECONDS = 3
 
 class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
@@ -41,6 +49,14 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
     private lateinit var panel: DialogPanel
 
+    private val timeoutSpinner =
+        JBIntSpinner(
+            5,
+            MINIMUM_TIMEOUT_VALUE_IN_SECONDS,
+            Int.MAX_VALUE,
+            MINIMUM_TIMEOUT_VALUE_IN_SECONDS
+        )
+
     init {
         if (model.testSourceRoot is FakeVirtualFile || model.testSourceRoot == null) {
             val file = File(model.project.basePath + "/utbot_tests/")
@@ -57,6 +73,8 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         init()
     }
 
+
+
     @Suppress("UNCHECKED_CAST")
     override fun createCenterPanel(): JComponent {
         panel = panel {
@@ -70,6 +88,12 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
                     }
                 )
             }
+            row("Timeout for Node.js (in seconds):") {
+                panelWithHelpTooltip("The execution timeout") {
+                    component(timeoutSpinner)
+                    component(JBLabel("sec"))
+                }
+            }
             row("Generate test methods for:") {}
             row {
                 scrollPane(functionsTable)
@@ -79,10 +103,20 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         return panel
     }
 
+
+    private inline fun Cell.panelWithHelpTooltip(tooltipText: String?, crossinline init: Cell.() -> Unit): Cell {
+        init()
+        tooltipText?.let { component(ContextHelpLabel.create(it)) }
+        return this
+    }
+
+
     override fun doOKAction() {
         val selected = functionsTable.selectedMemberInfos.toSet()
         model.selectedMethods = if (selected.any()) selected else emptySet()
         model.testFramework = testFrameworks.item
+        model.timeout = timeoutSpinner.number.toLong()
+
         configureTestFrameworkIfRequired()
         super.doOKAction()
     }

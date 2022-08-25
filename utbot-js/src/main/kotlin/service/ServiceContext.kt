@@ -6,4 +6,5 @@ data class ServiceContext(
     val filePathToInference: String,
     val trimmedFileText: String,
     val fileText: String? = null,
+    val nodeTimeout: Long,
 )

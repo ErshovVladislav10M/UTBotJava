@@ -62,6 +62,7 @@ object JsDialogProcessor {
                 project,
                 srcModule,
                 testModules,
+                3L,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
             ).apply {
@@ -98,7 +99,8 @@ object JsDialogProcessor {
                                 if (name == "toplevelHack") null else name
                             },
                             outputFilePath = "${testDir.virtualFile.path}/$testFileName".replace("/", "\\"),
-                            exportsManager = partial(::manageExports, editor, project)
+                            exportsManager = partial(::manageExports, editor, project),
+                            timeout = model.timeout,
                         )
 
                         indicator.fraction = indicator.fraction.coerceAtLeast(0.9)

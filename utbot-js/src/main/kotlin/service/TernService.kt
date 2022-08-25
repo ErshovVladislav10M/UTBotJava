@@ -88,7 +88,6 @@ test("${context.filePathToInference}")
         JsCmdExec.runCommand(
             "npm install tern -l",
             path,
-            true,
         )
     }
 

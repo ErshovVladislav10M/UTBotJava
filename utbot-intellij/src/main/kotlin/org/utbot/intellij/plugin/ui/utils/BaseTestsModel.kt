@@ -8,7 +8,8 @@ import com.intellij.openapi.vfs.VirtualFile
 open class BaseTestsModel(
     open val project: Project,
     open val srcModule: Module,
-    open val potentialTestModules: List<Module>,
+    val potentialTestModules: List<Module>,
+    open var timeout: Long,
 ) {
     // GenerateTestsModel is supposed to be created with non-empty list of potentialTestModules.
     // Otherwise, the error window is supposed to be shown earlier.
