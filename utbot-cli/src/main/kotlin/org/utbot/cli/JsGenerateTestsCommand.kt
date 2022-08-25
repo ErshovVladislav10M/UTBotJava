@@ -46,8 +46,8 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
     private val timeout by option(
         "-t",
         "--timeout",
-        help = "Timeout for Node.js to run scripts"
-    ).default("3")
+        help = "Timeout for Node.js to run scripts in seconds"
+    ).default("5")
 
     override fun run() {
 
