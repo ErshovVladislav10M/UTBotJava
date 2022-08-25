@@ -120,7 +120,7 @@ class JsTestGenerator(
             val fuzzedValues =
                 JsFuzzer.jsFuzzing(methodUnderTestDescription = methodUnderTestDescription).toList()
                     .shuffled()
-                    .take(500)
+                    .take(1_000)
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
             val importText =
                 PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)

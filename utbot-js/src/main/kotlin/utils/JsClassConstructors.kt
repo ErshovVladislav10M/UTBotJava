@@ -12,7 +12,7 @@ fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = n
     val className = classNode?.ident?.name?.toString()
     val methods = classNode?.classElements?.map {
         val funcNode = it.value as FunctionNode
-        val types = ternService.processMethod(className, funcNode.name.toString())
+        val types = ternService.processMethod(className, funcNode)
         JsMethodId(
             JsClassId(name),
             funcNode.name.toString(),
@@ -25,7 +25,7 @@ fun JsClassId.constructClass(ternService: TernService, classNode: ClassNode? = n
     }?.asSequence() ?:
         // used for toplevel functions
         functions.map { funcNode ->
-            val types = ternService.processMethod(className, funcNode.name.toString(), true)
+            val types = ternService.processMethod(className, funcNode, true)
             JsMethodId(
                 JsClassId(name),
                 funcNode.name.toString(),

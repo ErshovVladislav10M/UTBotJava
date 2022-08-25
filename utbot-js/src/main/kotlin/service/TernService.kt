@@ -157,23 +157,30 @@ test("${context.filePathToInference}")
         } ?: jsUndefinedClassId
     }
 
-    fun processMethod(className: String?, methodName: String, isToplevel: Boolean = false): MethodTypes {
+    fun processMethod(className: String?, funcNode: FunctionNode, isToplevel: Boolean = false): MethodTypes {
         // Js doesn't support nested classes, so if the function is not top-level, then we can check for only one parent class.
-        var scope = className?.let {
-            if (!isToplevel) json.getJSONObject(it) else json
-        } ?: json
         try {
-            scope.getJSONObject(methodName)
-        } catch (e: JSONException) {
-            scope = scope.getJSONObject("prototype")
-        }
-        val methodJson = scope.getJSONObject(methodName)
-        val typesString = methodJson.getString("!type")
-            .filterNot { setOf(' ', '+', '!').contains(it) }
-        val parametersList = lazy { extractParameters(typesString) }
-        val returnType = lazy { extractReturnType(typesString) }
+            var scope = className?.let {
+                if (!isToplevel) json.getJSONObject(it) else json
+            } ?: json
+            try {
+                scope.getJSONObject(funcNode.name.toString())
+            } catch (e: JSONException) {
+                scope = scope.getJSONObject("prototype")
+            }
+            val methodJson = scope.getJSONObject(funcNode.name.toString())
+            val typesString = methodJson.getString("!type")
+                .filterNot { setOf(' ', '+', '!').contains(it) }
+            val parametersList = lazy { extractParameters(typesString) }
+            val returnType = lazy { extractReturnType(typesString) }
 
-        return MethodTypes(parametersList, returnType)
+            return MethodTypes(parametersList, returnType)
+        } catch (e: Exception) {
+            return MethodTypes(
+                lazy { funcNode.parameters.map { jsUndefinedClassId } },
+                lazy { jsUndefinedClassId }
+            )
+        }
     }
 
     //TODO MINOR: move to appropriate place (JsIdUtil or JsClassId constructor)

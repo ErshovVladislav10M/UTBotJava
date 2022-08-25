@@ -18,10 +18,9 @@ import com.intellij.ui.layout.panel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.io.File
+import java.util.Locale
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.text.JTextComponent
 import org.jetbrains.kotlin.idea.core.util.toVirtualFile
 import org.utbot.framework.codegen.Mocha
 import org.utbot.framework.codegen.TestFramework
@@ -60,13 +59,14 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
     init {
         if (model.testSourceRoot is FakeVirtualFile || model.testSourceRoot == null) {
             val file = File(model.project.basePath + "/utbot_tests/")
+
             file.mkdir()
             model.testSourceRoot = file.toVirtualFile()!!
         }
         title = "Generate tests with UtBot"
         initTestFrameworkPresenceThread = thread(start = true) {
             TestFramework.allJsItems.forEach {
-                it.isInstalled = findFrameworkLibrary(it.displayName.toLowerCase())
+                it.isInstalled = findFrameworkLibrary(it.displayName.lowercase(Locale.getDefault()))
             }
         }
         setResizable(false)
@@ -139,7 +139,7 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         selectedTestFramework.isInstalled = true
         // TODO SEVERE: move version to TestFramework. Here is a hardcode for mocha
         JsCmdExec.runCommand(
-            "npm install -l ${selectedTestFramework.displayName.toLowerCase()}@8.0.0",
+            "npm install -l ${selectedTestFramework.displayName.lowercase(Locale.getDefault())}@8.0.0",
             model.project.basePath!!
         )
     }
