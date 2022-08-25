@@ -5,6 +5,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.choice
+import java.io.File
 import mu.KotlinLogging
 import utils.JsCmdExec
 
@@ -23,9 +24,14 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
 
 
     override fun run() {
+        val dir = if (fileWithTests.endsWith(".js"))
+            fileWithTests.substringBeforeLast(File.separator) else fileWithTests
         when (testFramework) {
             "mocha" -> {
-                val (text, error) = JsCmdExec.runCommand("mocha $fileWithTests")
+                val (text, error) = JsCmdExec.runCommand(
+                    "mocha $fileWithTests",
+                    dir
+                )
                 val errorText = error.readText()
                 if (errorText.isNotEmpty()) {
                     logger.error { "An error has occurred while running tests for $fileWithTests : $errorText" }

@@ -12,6 +12,7 @@ import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import mu.KotlinLogging
+import utils.JsCmdExec
 
 private val logger = KotlinLogging.logger {}
 
@@ -45,6 +46,8 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
 
         val started = LocalDateTime.now()
         try {
+            logger.debug { "Installing npm packages" }
+            installDeps(sourceCodeFile.substringBeforeLast(File.separator))
             logger.debug { "Generating test for [$sourceCodeFile] - started" }
             val fileText = File(sourceCodeFile).readText()
             val testGenerator = JsTestGenerator(
@@ -98,5 +101,15 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
                 file.appendText(line)
             }
         }
+    }
+
+    private fun installDeps(dir: String) {
+        JsCmdExec.runCommand(
+            "npm i -g nyc"
+        )
+        JsCmdExec.runCommand(
+            "npm i -l mocha",
+            dir
+        )
     }
 }
