@@ -1,10 +1,9 @@
 package org.utbot.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.parameters.arguments.argument
-import com.github.ajalt.clikt.parameters.arguments.check
 import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.required
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -20,9 +19,11 @@ private val logger = KotlinLogging.logger {}
 
 class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests coverage for the specified file") {
 
-    private val testFile by argument(
+    private val testFile by option(
+        "-s", "--source",
         help = "Target test file path"
-    ).check("Must exist and ends with .js suffix") {
+    ).required()
+        .check("Must exist and ends with .js suffix") {
         it.endsWith(".js") && Files.exists(Paths.get(it))
     }
 
