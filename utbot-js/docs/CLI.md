@@ -42,6 +42,9 @@ This will generate coverage report from generated tests and print in `StdOut`
 - `-p, --print-test`
   
   Specifies whether test should be printed out to `StdOut` (default = false)
+- `-t, --timeout <seconds>`
+
+  Timeout for Node.js to run scripts in seconds (default = 5)
 
 ## `run_js` options
 
