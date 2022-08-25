@@ -59,7 +59,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
             )
             val testCode = testGenerator.run()
 
-            if (printToStdOut) {
+            if (printToStdOut || (output == null && !printToStdOut)) {
                 logger.info { testCode }
             }
             output?.let { filePath ->
