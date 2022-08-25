@@ -59,4 +59,24 @@ abstract class AbstractGoUtTestsGenerationController(private val goExecutableAbs
         sourceFile: GoUtFile,
         generatedTestsFileCode: String
     ): Boolean
+
+    protected fun generateMissingSelectedFunctionsListMessage(
+        analysisResults: Map<GoUtFile, GoSourceCodeAnalyzer.GoSourceFileAnalysisResult>,
+    ): String {
+        return analysisResults.filter { (_, analysisResult) ->
+            analysisResult.notSupportedFunctionsNames.isNotEmpty() || analysisResult.notFoundFunctionsNames.isNotEmpty()
+        }.map { (sourceFile, analysisResult) ->
+            val notSupportedFunctions = analysisResult.notSupportedFunctionsNames.joinToString(separator = ", ")
+            val notFoundFunctions = analysisResult.notFoundFunctionsNames.joinToString(separator = ", ")
+            val messageSb = StringBuilder()
+            messageSb.append("File ${sourceFile.absolutePath}")
+            if (notSupportedFunctions.isNotEmpty()) {
+                messageSb.append("\n-- contains currently unsupported functions: $notSupportedFunctions")
+            }
+            if (notFoundFunctions.isNotEmpty()) {
+                messageSb.append("\n-- does not contain functions: $notFoundFunctions")
+            }
+            messageSb.toString()
+        }.joinToString(separator = "\n\n", prefix = "\n\n", postfix = "\n\n")
+    }
 }

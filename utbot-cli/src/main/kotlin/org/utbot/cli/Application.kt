@@ -12,6 +12,7 @@ import mu.KotlinLogging
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.core.config.Configurator
 import org.slf4j.event.Level
+import org.utbot.cli.go.GenerateGoTestsCommand
 
 private val logger = KotlinLogging.logger {}
 
@@ -28,7 +29,12 @@ class UtBotCli : CliktCommand(name = "UnitTestBot Java Command Line Interface") 
 }
 
 fun main(args: Array<String>) = try {
-    UtBotCli().subcommands(GenerateTestsCommand(), BunchTestGeneratorCommand(), RunTestsCommand()).main(args)
+    UtBotCli().subcommands(
+        GenerateTestsCommand(),
+        BunchTestGeneratorCommand(),
+        RunTestsCommand(),
+        GenerateGoTestsCommand()
+    ).main(args)
 } catch (ex: Throwable) {
     ex.printStackTrace()
     exitProcess(1)

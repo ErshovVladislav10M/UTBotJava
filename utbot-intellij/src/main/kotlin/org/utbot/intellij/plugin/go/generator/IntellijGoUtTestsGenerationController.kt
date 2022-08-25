@@ -111,29 +111,14 @@ class IntellijGoUtTestsGenerationController(
     private fun handleMissingSelectedFunctions(
         analysisResults: Map<GoUtFile, GoSourceCodeAnalyzer.GoSourceFileAnalysisResult>
     ): Boolean {
-        val missingSelectedFunctionsListMessage = analysisResults.filter { (_, analysisResult) ->
-            analysisResult.notSupportedFunctionsNames.isNotEmpty() || analysisResult.notFoundFunctionsNames.isNotEmpty()
-        }.map { (sourceFile, analysisResult) ->
-            val notSupportedFunctions = analysisResult.notSupportedFunctionsNames.joinToString(separator = ", ")
-            val notFoundFunctions = analysisResult.notFoundFunctionsNames.joinToString(separator = ", ")
-            val messageSb = StringBuilder()
-            messageSb.append("File ${sourceFile.absolutePath}")
-            if (notSupportedFunctions.isNotEmpty()) {
-                messageSb.append("\n-- contains currently unsupported functions: $notSupportedFunctions")
-            }
-            if (notFoundFunctions.isNotEmpty()) {
-                messageSb.append("\n-- does not contain functions: $notFoundFunctions")
-            }
-            messageSb.toString()
-        }.joinToString(separator = "\n\n")
-
+        val missingSelectedFunctionsListMessage = generateMissingSelectedFunctionsListMessage(analysisResults)
         val okSelectedFunctionsArePresent =
             analysisResults.any { (_, analysisResult) -> analysisResult.functions.isNotEmpty() }
+
         if (missingSelectedFunctionsListMessage.isNotEmpty()) {
             val errorMessageSb = StringBuilder()
-                .append("Some selected functions were skipped during source code analysis.\n\n")
-                .append("$missingSelectedFunctionsListMessage\n\n")
-                .append("")
+                .append("Some selected functions were skipped during source code analysis.")
+                .append(missingSelectedFunctionsListMessage)
             if (okSelectedFunctionsArePresent) {
                 showWarningDialogLater(
                     model.project,
