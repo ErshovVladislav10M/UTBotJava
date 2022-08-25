@@ -4,6 +4,7 @@ import java.io.File
 import java.util.*
 import org.apache.commons.io.FileUtils
 import org.json.JSONObject
+import org.utbot.framework.plugin.api.TimeoutException
 import utils.JsCmdExec
 
 class CoverageService(
@@ -13,6 +14,7 @@ class CoverageService(
     private val originalFileName: String,
     private val newFileName: String,
     private val basicCoverage: List<Int> = emptyList(),
+    val errors: MutableList<Int>
 ) {
 
     init {
@@ -27,6 +29,7 @@ class CoverageService(
     }
 
     fun getCoveredLines(): List<Int> {
+        if (id in errors) return emptyList()
         val jsonText = with(context) {
             val file = File("$projectPath${File.separator}$utbotDir${File.separator}coverage$id${File.separator}coverage-final.json")
             file.readText()
@@ -57,19 +60,23 @@ class CoverageService(
     private fun generateCoverageReport(workingDir: String, filePath: String) {
         val dir = File("$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id")
         dir.mkdir()
-        val (_, error) = JsCmdExec.runCommand(
-            "nyc " +
-                "--report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" " +
-                "--reporter=\"json\" " +
-                "--temp-dir=\"${dir.absolutePath}${File.separator}cache$id\" " +
-                "node $filePath",
-            workingDir,
-            true,
-        )
-        val errText = error.readText()
-        if (errText.isNotEmpty()) {
-            println(errText)
-            println("Also $id and ${dir.path}")
+        try {
+            val (_, error) = JsCmdExec.runCommand(
+                "nyc " +
+                        "--report-dir=\"$workingDir${File.separator}${context.utbotDir}${File.separator}coverage$id\" " +
+                        "--reporter=\"json\" " +
+                        "--temp-dir=\"${dir.absolutePath}${File.separator}cache$id\" " +
+                        "node $filePath",
+                workingDir,
+                true,
+                context.nodeTimeout
+            )
+            val errText = error.readText()
+            if (errText.isNotEmpty()) {
+                println(errText)
+            }
+        } catch (e: TimeoutException) {
+            errors += id
         }
     }
 

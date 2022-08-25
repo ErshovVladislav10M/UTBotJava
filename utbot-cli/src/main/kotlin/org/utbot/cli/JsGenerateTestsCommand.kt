@@ -3,6 +3,7 @@ package org.utbot.cli
 import api.JsTestGenerator
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.check
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
@@ -42,6 +43,12 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
     )
         .flag(default = false)
 
+    private val timeout by option(
+        "-t",
+        "--timeout",
+        help = "Timeout for Node.js to run scripts"
+    ).default("3")
+
     override fun run() {
 
         val started = LocalDateTime.now()
@@ -55,7 +62,8 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
                 sourceFilePath = sourceCodeFile,
                 parentClassName = targetClass,
                 outputFilePath = output,
-                exportsManager = ::manageExports
+                exportsManager = ::manageExports,
+                timeout = timeout.toLong()
             )
             val testCode = testGenerator.run()
 

@@ -10,6 +10,7 @@ import com.oracle.truffle.api.strings.TruffleString
 import fuzzer.JsFuzzer
 import fuzzer.providers.JsObjectModelProvider
 import java.io.File
+import java.util.Collections
 import org.utbot.framework.codegen.model.constructor.CgMethodTestSet
 import org.utbot.framework.plugin.api.EnvironmentModels
 import org.utbot.framework.plugin.api.ExecutableId
@@ -50,6 +51,7 @@ class JsTestGenerator(
     private val parentClassName: String? = null,
     private val outputFilePath: String?,
     private val exportsManager: (List<String>) -> Unit,
+    private val timeout: Long,
 ) {
 
     private val exports = mutableSetOf<String>()
@@ -70,6 +72,7 @@ class JsTestGenerator(
             filePathToInference = sourceFilePath.replace("\\", "/"),
             fileText = fileText,
             trimmedFileText = fileText,
+            nodeTimeout = timeout,
         )
         // TODO MINOR: do not create existing files
         val ternService = TernService(context)
@@ -121,12 +124,14 @@ class JsTestGenerator(
             val coveredBranchesArray = Array<Set<Int>>(fuzzedValues.size) { emptySet() }
             val importText =
                 PathResolver.getRelativePath("$projectPath${File.separator}$utbotDir", sourceFilePath)
+            val timeoutErrors = Collections.synchronizedList(mutableListOf<Int>())
             val basicCoverageService = CoverageService(
                 context,
                 context.trimmedFileText,
                 1024,
                 sourceFilePath.substringAfterLast(File.separator),
-                sourceFilePath.substringAfterLast(File.separator)
+                sourceFilePath.substringAfterLast(File.separator),
+                errors = mutableListOf()
             )
             val basicCoverage = basicCoverageService.getCoveredLines()
             basicCoverageService.removeTempFiles()
@@ -144,7 +149,8 @@ class JsTestGenerator(
                     it,
                     sourceFilePath.substringAfterLast(File.separator),
                     "temp",
-                    basicCoverage
+                    basicCoverage,
+                    timeoutErrors
                 )
                 coveredBranchesArray[it] = coverageService.getCoveredLines().toSet()
                 coverageService.removeTempFiles()
@@ -152,7 +158,12 @@ class JsTestGenerator(
             val testsForGenerator = mutableListOf<UtExecution>()
             val resultRegex = Regex("Utbot result: (.*)")
             val errorResultRegex = Regex(".*(Error: .*)")
-
+            if (timeoutErrors.size == fuzzedValues.size) {
+                throw IllegalStateException("No successful tests were generated! Please check the function under test.")
+            }
+            val errorsForGenerator = timeoutErrors.associate {
+                "Timeout in generating test for ${fuzzedValues[it].joinToString { f -> f.model.toString() }} parameters" to 1
+            }
             analyzeCoverage(coveredBranchesArray.toList()).forEach { paramIndex ->
                 val param = fuzzedValues[paramIndex]
                 val utConstructor = JsUtModelConstructor()
@@ -217,9 +228,6 @@ class JsTestGenerator(
                     )
                 )
             }
-            // TODO: Collect unexpectedFail in RunTime
-            val errorsForGenerator: Map<String, Int> = emptyMap()
-
             val testSet = CgMethodTestSet(
                 execId,
                 testsForGenerator,
@@ -272,7 +280,12 @@ class JsTestGenerator(
         val tempFile = File("$workDir${File.separator}$utbotDir${File.separator}tempScriptUtbotJs.js")
         tempFile.createNewFile()
         tempFile.writeText(scriptText)
-        val (reader, errorReader) = JsCmdExec.runCommand("node ${tempFile.path}", dir = workDir, true)
+        val (reader, errorReader) = JsCmdExec.runCommand(
+            "node ${tempFile.path}",
+            dir = workDir,
+            true,
+            timeout
+        )
         tempFile.delete()
         return errorReader.readText().ifEmpty { reader.readText() }
     }
@@ -340,8 +353,7 @@ class JsTestGenerator(
 
     private fun analyzeCoverage(coverageList: List<Set<Int>>): List<Int> {
         val allCoveredBranches = mutableSetOf<Int>()
-        allCoveredBranches.addAll(coverageList.first())
-        val resultList = mutableListOf(0)
+        val resultList = mutableListOf<Int>()
         coverageList.forEachIndexed { index, it ->
             if (!allCoveredBranches.containsAll(it)) {
                 resultList += index

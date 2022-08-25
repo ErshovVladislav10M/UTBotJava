@@ -11,12 +11,14 @@ class JsTestsModel(
     project: Project,
     srcModule: Module,
     potentialTestModules: List<Module>,
+    timeout: Long,
     val fileMethods: Set<JSMemberInfo>,
     var selectedMethods: Set<JSMemberInfo>,
 ) : BaseTestsModel(
     project,
     srcModule,
-    potentialTestModules
+    potentialTestModules,
+    timeout
 ) {
     lateinit var testFramework: TestFramework
     lateinit var containingFilePath: String
