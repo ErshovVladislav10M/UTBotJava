@@ -14,7 +14,7 @@ object JsCmdExec {
     private val cmdDelim = if (System.getProperty("os.name").lowercase(Locale.getDefault()).contains("windows"))
         "/c" else "-c"
 
-    fun runCommand(cmd: String, dir: String? = null, shouldWait: Boolean = false, timeout: Long = 3): Pair<BufferedReader, BufferedReader> {
+    fun runCommand(cmd: String, dir: String? = null, shouldWait: Boolean = false, timeout: Long = 5): Pair<BufferedReader, BufferedReader> {
         val builder = ProcessBuilder(cmdPrefix, cmdDelim, cmd)
         dir?.let {
             builder.directory(File(it))

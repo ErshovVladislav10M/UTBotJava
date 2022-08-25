@@ -4,6 +4,7 @@ import com.oracle.js.parser.ir.ClassNode
 import com.oracle.js.parser.ir.FunctionNode
 import java.io.File
 import java.nio.charset.Charset
+import java.util.Locale
 import org.json.JSONException
 import org.json.JSONObject
 import org.utbot.framework.plugin.api.JsClassId
@@ -106,7 +107,8 @@ test("${context.filePathToInference}")
             val (reader, _) = JsCmdExec.runCommand(
                 "node ${projectPath}${File.separator}$utbotDir${File.separator}ternScript.js",
                 "$projectPath${File.separator}$utbotDir${File.separator}",
-                true
+                true,
+                timeout = 20
             )
             val text = reader.readText().replaceAfterLast("}", "")
             json = JSONObject(text)
@@ -186,8 +188,8 @@ test("${context.filePathToInference}")
                     elementClassId = makeClassId(arrType)
                 )
             }
-            name.contains('|') -> JsMultipleClassId(name.toLowerCase())
-            else -> JsClassId(name.toLowerCase())
+            name.contains('|') -> JsMultipleClassId(name.lowercase(Locale.getDefault()))
+            else -> JsClassId(name.lowercase(Locale.getDefault()))
         }
 
         return try {
