@@ -16,8 +16,7 @@ class CliGoUtTestsGenerationController(
     goExecutableAbsolutePath: String,
     private val printToStdOut: Boolean,
     private val overwriteTestFiles: Boolean
-) :
-    AbstractGoUtTestsGenerationController(goExecutableAbsolutePath) {
+) : AbstractGoUtTestsGenerationController(goExecutableAbsolutePath) {
 
     private lateinit var currentStageStarted: LocalDateTime
 
@@ -71,7 +70,7 @@ class CliGoUtTestsGenerationController(
 
     override fun onTestCasesFileCodeGenerationFinished(sourceFile: GoUtFile, generatedTestsFileCode: String): Boolean {
         if (printToStdOut) {
-            cliLogger.info { "generatedTestsFileCode\n" }
+            cliLogger.info { generatedTestsFileCode }
             return true
         }
         writeGeneratedCodeToFile(sourceFile, generatedTestsFileCode)
@@ -91,7 +90,7 @@ class CliGoUtTestsGenerationController(
         val okSelectedFunctionsArePresent =
             analysisResults.any { (_, analysisResult) -> analysisResult.functions.isNotEmpty() }
 
-        if (missingSelectedFunctionsListMessage.isNotEmpty()) {
+        if (missingSelectedFunctionsListMessage != null) {
             cliLogger.warn { "Some selected functions were skipped during source code analysis.$missingSelectedFunctionsListMessage" }
         }
         if (!okSelectedFunctionsArePresent) {

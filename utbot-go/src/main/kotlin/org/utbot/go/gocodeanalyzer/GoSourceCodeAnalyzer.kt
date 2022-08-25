@@ -1,6 +1,6 @@
 package org.utbot.go.gocodeanalyzer
 
-import org.utbot.common.FileUtil
+import org.utbot.common.FileUtil.extractDirectoryFromArchive
 import org.utbot.common.scanForResourcesContaining
 import java.io.File
 import org.utbot.go.api.GoTypeId
@@ -89,6 +89,7 @@ object GoSourceCodeAnalyzer {
         } finally {
             analysisTargetsFile.delete()
             analysisResultsFile.delete()
+            goCodeAnalyzerSourceDir.deleteRecursively()
         }
     }
 
@@ -102,9 +103,9 @@ object GoSourceCodeAnalyzer {
             error("Resource for $sourceDirectoryName directory is expected to be JAR: others are not supported yet.")
         }
 
-        val extractedJarDirectory = FileUtil.extractArchive(containingResourceFile.toPath()).toFile()
-        return extractedJarDirectory.listFiles { file -> file.name == sourceDirectoryName }?.firstOrNull()
-            ?: error("Can't find $sourceDirectoryName directory at the top level of extracted JAR ${extractedJarDirectory.absolutePath}.")
+        val archiveFilePath = containingResourceFile.toPath()
+        return extractDirectoryFromArchive(archiveFilePath, sourceDirectoryName)?.toFile()
+            ?: error("Can't find $sourceDirectoryName directory at the top level of JAR ${archiveFilePath.toAbsolutePath()}.")
     }
 
     private fun getGoCodeAnalyzerSourceFilesNames(): List<String> {

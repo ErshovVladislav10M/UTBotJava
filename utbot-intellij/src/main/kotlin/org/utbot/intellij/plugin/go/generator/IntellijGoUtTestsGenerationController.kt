@@ -115,26 +115,27 @@ class IntellijGoUtTestsGenerationController(
         val okSelectedFunctionsArePresent =
             analysisResults.any { (_, analysisResult) -> analysisResult.functions.isNotEmpty() }
 
-        if (missingSelectedFunctionsListMessage.isNotEmpty()) {
-            val errorMessageSb = StringBuilder()
-                .append("Some selected functions were skipped during source code analysis.")
-                .append(missingSelectedFunctionsListMessage)
-            if (okSelectedFunctionsArePresent) {
-                showWarningDialogLater(
-                    model.project,
-                    errorMessageSb.append("Unit test generation for other selected functions will be performed as usual.")
-                        .toString(),
-                    title = "Skipped some functions for unit tests generation"
-                )
-            } else {
-                showErrorDialogLater(
-                    model.project,
-                    errorMessageSb.append("Unit test generation is cancelled: no other selected functions.").toString(),
-                    title = "Unit tests generation is cancelled"
-                )
-            }
+        if (missingSelectedFunctionsListMessage == null) {
+            return okSelectedFunctionsArePresent
         }
 
+        val errorMessageSb = StringBuilder()
+            .append("Some selected functions were skipped during source code analysis.")
+            .append(missingSelectedFunctionsListMessage)
+        if (okSelectedFunctionsArePresent) {
+            showWarningDialogLater(
+                model.project,
+                errorMessageSb.append("Unit test generation for other selected functions will be performed as usual.")
+                    .toString(),
+                title = "Skipped some functions for unit tests generation"
+            )
+        } else {
+            showErrorDialogLater(
+                model.project,
+                errorMessageSb.append("Unit test generation is cancelled: no other selected functions.").toString(),
+                title = "Unit tests generation is cancelled"
+            )
+        }
         return okSelectedFunctionsArePresent
     }
 }
