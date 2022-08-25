@@ -38,7 +38,7 @@ This will generate coverage report from generated tests and print in `StdOut`
 
 - `-o, --output <dir/filename>`
 
-  File for generated tests. (if empty `-p, --print-test` should be true)
+  File for generated tests.
 - `-p, --print-test`
   
   Specifies whether test should be printed out to `StdOut` (default = false)
