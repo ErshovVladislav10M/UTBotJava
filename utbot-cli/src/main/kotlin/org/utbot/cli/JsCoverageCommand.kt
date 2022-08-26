@@ -43,7 +43,7 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
             20
         )
         JsCmdExec.runCommand(
-            "npm i -l mocha",
+            "npm i -g mocha",
             workingDir,
             true,
             20

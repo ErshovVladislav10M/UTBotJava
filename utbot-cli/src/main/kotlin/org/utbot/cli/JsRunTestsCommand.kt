@@ -37,7 +37,7 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
         when (testFramework) {
             "mocha" -> {
                 JsCmdExec.runCommand(
-                    "npm i -l mocha",
+                    "npm i -g mocha",
                     dir,
                     true,
                     15

@@ -119,7 +119,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
             20
         )
         JsCmdExec.runCommand(
-            "npm i -l mocha",
+            "npm i -g mocha",
             dir,
             true,
             20
