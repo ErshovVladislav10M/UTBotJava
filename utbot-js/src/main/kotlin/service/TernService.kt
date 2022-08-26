@@ -191,7 +191,7 @@ test("${context.filePathToInference}")
     private fun makeClassId(name: String): JsClassId {
         val classId = when {
             // TODO SEVERE: I don't know why Tern sometimes says that type is "0"
-            name == "?" || name == "0" -> jsUndefinedClassId
+            name == "?" || name.toIntOrNull() != null -> jsUndefinedClassId
             Regex("\\[(.*)]").matches(name) -> {
                 val arrType = Regex("\\[(.*)]").find(name)?.groups?.get(1)?.value ?: throw IllegalStateException()
                 JsClassId(
