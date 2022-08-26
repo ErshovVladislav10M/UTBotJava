@@ -111,7 +111,11 @@ test("${context.filePathToInference}")
                 timeout = 20
             )
             val text = reader.readText().replaceAfterLast("}", "")
-            json = JSONObject(text)
+            json = try {
+                JSONObject(text)
+            } catch (_ : Throwable) {
+                JSONObject()
+            }
         }
     }
 
