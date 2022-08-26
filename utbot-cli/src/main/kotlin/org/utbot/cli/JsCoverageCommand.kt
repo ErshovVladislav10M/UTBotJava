@@ -35,15 +35,28 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
 
     override fun run() {
         val workingDir = testFile.substringBeforeLast(File.separator)
-        val coverageDataPath = "$workingDir${File.separator}coverage"
+        val coverageDataPath = "$workingDir${File.separator}coverage${File.separator}"
+        JsCmdExec.runCommand(
+            "npm i -l nyc",
+            workingDir,
+            true,
+            20
+        )
+        JsCmdExec.runCommand(
+            "npm i -l mocha",
+            workingDir,
+            true,
+            20
+        )
         JsCmdExec.runCommand(
             "nyc " +
-                    "--report-dir=\"$coverageDataPath\" " +
+                    "--report-dir=$coverageDataPath " +
                     "--reporter=\"clover\" " +
-                    "--temp-dir=\"${workingDir}${File.separator}cache\" " +
+                    "--temp-dir=${workingDir}${File.separator}cache " +
                     "mocha $testFile",
             workingDir,
             true,
+            20,
         )
         val coveredList = mutableListOf<Int>()
         val partiallyCoveredList = mutableListOf<Int>()
@@ -72,10 +85,16 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
         doc: Document,
     ) {
         doc.documentElement.normalize()
-        val lineList = (((doc.getElementsByTagName("project").item(0) as Element)
-            .getElementsByTagName("package").item(0) as Element)
-            .getElementsByTagName("file").item(0) as Element)
-            .getElementsByTagName("line")
+        val lineList = try {
+            (((doc.getElementsByTagName("project").item(0) as Element)
+                .getElementsByTagName("package").item(0) as Element)
+                .getElementsByTagName("file").item(0) as Element)
+                .getElementsByTagName("line")
+        } catch (e: Exception) {
+            ((doc.getElementsByTagName("project").item(0) as Element)
+                .getElementsByTagName("file").item(0) as Element)
+                .getElementsByTagName("line")
+        }
         for (i in 0 until lineList.length) {
             val lineInfo = lineList.item(i) as Element
             val num = lineInfo.getAttribute("num").toInt()

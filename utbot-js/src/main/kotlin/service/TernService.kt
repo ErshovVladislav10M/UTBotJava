@@ -120,8 +120,8 @@ test("${context.filePathToInference}")
     }
 
     fun processConstructor(classNode: ClassNode): List<JsClassId> {
-        val classJson = json.getJSONObject(classNode.ident.name.toString())
         return try {
+            val classJson = json.getJSONObject(classNode.ident.name.toString())
             val constructorFunc = classJson.getString("!type")
                 .filterNot { setOf(' ', '+', '!').contains(it) }
             extractParameters(constructorFunc)

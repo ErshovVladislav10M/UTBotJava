@@ -36,6 +36,12 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
             fileWithTests.substringBeforeLast(File.separator) else fileWithTests
         when (testFramework) {
             "mocha" -> {
+                JsCmdExec.runCommand(
+                    "npm i -l mocha",
+                    dir,
+                    true,
+                    15
+                )
                 val (textReader, error) = JsCmdExec.runCommand(
                     "mocha $fileWithTests",
                     dir
@@ -49,7 +55,7 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
                         val file = File(it)
                         file.createNewFile()
                         file.writeText(text)
-                    } ?: logger.info { text }
+                    } ?: logger.info { "\n$text" }
                 }
             }
         }
