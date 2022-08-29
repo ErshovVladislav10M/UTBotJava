@@ -40,7 +40,7 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
         val coverageDataPath = "$workingDir${File.separator}coverage${File.separator}"
         val outputAbsolutePath = output?.let { makeAbsolutePath(it) }
         JsCmdExec.runCommand(
-            "npm i -D nyc",
+            "npm i -g nyc",
             workingDir,
             true,
             20

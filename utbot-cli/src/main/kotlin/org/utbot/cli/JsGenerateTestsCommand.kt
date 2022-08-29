@@ -119,7 +119,7 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
 
     private fun installDeps(dir: String) {
         JsCmdExec.runCommand(
-            "npm i -D nyc",
+            "npm i -g nyc",
             dir,
             true,
             20,
