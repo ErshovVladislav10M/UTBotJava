@@ -8,6 +8,9 @@ This is a module that provides JavaScript support in UTBot Java.
 
 It is assumed that you have already read the [UTBot Java Readme](https://github.com/UnitTestBot/UTBotJava/blob/main/README.md).
 
+## Requirements
+
+* NodeJs 10.0.0 or higher (available to download https://nodejs.org/en/download/)
 
 ## Installation
 
@@ -75,6 +78,5 @@ Having troubles with using UTBot? Contact us [directly](https://www.utbot.org/co
 
 Here are some related projects
 
-[UTBotJava](https://github.com/UnitTestBot/UTBotJava)
-[UTBotCpp](https://github.com/UnitTestBot/UTBotCpp)
+[UTBotJava](https://github.com/UnitTestBot/UTBotJava)<br>[UTBotCpp](https://github.com/UnitTestBot/UTBotCpp)
 
