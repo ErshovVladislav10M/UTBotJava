@@ -8,6 +8,7 @@ import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.choice
 import java.io.File
 import mu.KotlinLogging
+import org.utbot.cli.util.JsUtils.makeAbsolutePath
 import utils.JsCmdExec
 
 private val logger = KotlinLogging.logger {}
@@ -32,8 +33,10 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
 
 
     override fun run() {
-        val dir = if (fileWithTests.endsWith(".js"))
-            fileWithTests.substringBeforeLast(File.separator) else fileWithTests
+        val fileWithTestsAbsolutePath = makeAbsolutePath(fileWithTests)
+        val dir = if (fileWithTestsAbsolutePath.endsWith(".js"))
+            fileWithTestsAbsolutePath.substringBeforeLast(File.separator) else fileWithTestsAbsolutePath
+        val outputAbsolutePath = output?.let { makeAbsolutePath(it) }
         when (testFramework) {
             "mocha" -> {
                 JsCmdExec.runCommand(
@@ -43,7 +46,7 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
                     15
                 )
                 val (textReader, error) = JsCmdExec.runCommand(
-                    "mocha $fileWithTests",
+                    "mocha $fileWithTestsAbsolutePath",
                     dir
                 )
                 val errorText = error.readText()
@@ -51,7 +54,7 @@ class JsRunTestsCommand : CliktCommand(name = "run_js", help = "Runs tests for t
                     logger.error { "An error has occurred while running tests for $fileWithTests : $errorText" }
                 } else {
                     val text = textReader.readText()
-                    output?.let {
+                    outputAbsolutePath?.let {
                         val file = File(it)
                         file.createNewFile()
                         file.writeText(text)

@@ -11,6 +11,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 import mu.KotlinLogging
 import org.json.JSONArray
 import org.json.JSONObject
+import org.utbot.cli.util.JsUtils.makeAbsolutePath
 import org.w3c.dom.Document
 import utils.JsCmdExec
 import org.w3c.dom.Element
@@ -34,8 +35,10 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
         }
 
     override fun run() {
-        val workingDir = testFile.substringBeforeLast(File.separator)
+        val testFileAbsolutePath = makeAbsolutePath(testFile)
+        val workingDir = testFileAbsolutePath.substringBeforeLast(File.separator)
         val coverageDataPath = "$workingDir${File.separator}coverage${File.separator}"
+        val outputAbsolutePath = output?.let { makeAbsolutePath(it) }
         JsCmdExec.runCommand(
             "npm i -D nyc",
             workingDir,
@@ -53,7 +56,7 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
                     "--report-dir=$coverageDataPath " +
                     "--reporter=\"clover\" " +
                     "--temp-dir=${workingDir}${File.separator}cache " +
-                    "mocha $testFile",
+                    "mocha $testFileAbsolutePath",
             workingDir,
             true,
             20,
@@ -75,7 +78,7 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
             partiallyCoveredList,
             uncoveredList,
         )
-        processResult(json, output)
+        processResult(json, outputAbsolutePath)
     }
 
     private fun buildCoverageLists(

@@ -13,6 +13,7 @@ import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import mu.KotlinLogging
+import org.utbot.cli.util.JsUtils.makeAbsolutePath
 import utils.JsCmdExec
 
 private val logger = KotlinLogging.logger {}
@@ -50,27 +51,27 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
     ).default("5")
 
     override fun run() {
-
         val started = LocalDateTime.now()
         try {
             logger.debug { "Installing npm packages" }
             installDeps(sourceCodeFile.substringBeforeLast(File.separator))
             logger.debug { "Generating test for [$sourceCodeFile] - started" }
             val fileText = File(sourceCodeFile).readText()
+            val outputAbsolutePath = output?.let { makeAbsolutePath(it) }
             val testGenerator = JsTestGenerator(
                 fileText = fileText,
-                sourceFilePath = sourceCodeFile,
+                sourceFilePath = makeAbsolutePath(sourceCodeFile),
                 parentClassName = targetClass,
-                outputFilePath = output,
+                outputFilePath = outputAbsolutePath,
                 exportsManager = ::manageExports,
                 timeout = timeout.toLong()
             )
             val testCode = testGenerator.run()
 
-            if (printToStdOut || (output == null && !printToStdOut)) {
+            if (printToStdOut || (outputAbsolutePath == null && !printToStdOut)) {
                 logger.info { "\n$testCode" }
             }
-            output?.let { filePath ->
+            outputAbsolutePath?.let { filePath ->
                 val outputFile = File(filePath)
                 outputFile.writeText(testCode)
                 outputFile.createNewFile()
@@ -96,7 +97,12 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
             fileText.contains(startComment) && !fileText.contains("module.exports = {$exportLine}") -> {
                 val regex = Regex("\n$startComment\n(.*)\n$endComment")
                 regex.find(fileText)?.groups?.get(1)?.value?.let {
-                    val swappedText = fileText.replace(it, "module.exports = {$exportLine}")
+                    val exportsRegex = Regex("\\{(.*)}")
+                    val existingExportsLine = exportsRegex.find(it)!!.groupValues[1]
+                    val existingExportsSet = existingExportsLine.filterNot {c -> c == ' ' }.split(',').toMutableSet()
+                    existingExportsSet.addAll(exports)
+                    val resLine = existingExportsSet.joinToString()
+                    val swappedText = fileText.replace(it, "module.exports = {$resLine}")
                     file.writeText(swappedText)
                 }
             }
@@ -116,13 +122,15 @@ class JsGenerateTestsCommand : CliktCommand(name = "generate_js", help = "Genera
             "npm i -D nyc",
             dir,
             true,
-            20
+            20,
+            File(dir).isAbsolute
         )
         JsCmdExec.runCommand(
             "npm i -g mocha",
             dir,
             true,
-            20
+            20,
+            File(dir).isAbsolute
         )
     }
 }
