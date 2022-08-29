@@ -45,7 +45,8 @@ jobs:
           TASKS=$(echo $(cat .github/workflows/framework-tests-matrix.json))
           echo "::set-output name=matrix::$TASKS"
           echo $TASKS
-  framework:
+
+  framework-test:
     # This job does not need to wait for 'prepare-tests-matrix' result.
     # GitHub allocates runners portionally. Framework tests are time consuming. That's why we want to force them 
     # to start execution early.
@@ -70,20 +71,23 @@ jobs:
       run: |
         git fetch
         git checkout ${{ github.event.inputs.commit_sha }}
+
     - name: Run monitoring
       run: |
         echo Find your Prometheus metrics using label {instance=\"${GITHUB_RUN_ID}-${HOSTNAME}\"}
         chmod +x ./scripts/monitoring.sh
         ./scripts/monitoring.sh ${{ secrets.PUSHGATEWAY_HOSTNAME }} ${{ secrets.PUSHGATEWAY_USER }} ${{ secrets.PUSHGATEWAY_PASSWORD }}
+
     - name: Run tests
       run: |     
-        gradle --no-daemon :utbot-framework:test ${{ matrix.project.TESTS_TO_RUN }}
+        gradle --no-daemon :utbot-framework-test:test ${{ matrix.project.TESTS_TO_RUN }}
+
     - name: Upload logs
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
         name: logs ${{ matrix.project.PART_NAME }}
-        path: utbot-framework/logs/*
+        path: utbot-framework-test/logs/*
 
     - name: Upload UTBot temp directory content
       if: ${{ always() }}
@@ -93,12 +97,13 @@ jobs:
         path: |
           /tmp/UTBot/generated*/*
           /tmp/UTBot/utbot-childprocess-errors/*
+
     - name: Upload test report if tests have failed
       if: ${{ failure() }}
       uses: actions/upload-artifact@v3
       with:
         name: test_report ${{ matrix.project.PART_NAME }}
-        path: utbot-framework/build/reports/tests/test/*
+        path: utbot-framework-test/build/reports/tests/test/*
 
 
   project:
@@ -109,7 +114,7 @@ jobs:
     # The option forces to execute all jobs even though some of them have failed.
       fail-fast: false
       matrix:
-        project: [utbot-api, utbot-cli, utbot-core, utbot-framework-api, utbot-fuzzers, utbot-gradle, utbot-instrumentation, utbot-instrumentation-tests, utbot-intellij, utbot-junit-contest, utbot-sample, utbot-summary, utbot-summary-tests]
+        project: [utbot-api, utbot-cli, utbot-core, utbot-framework, utbot-framework-api, utbot-fuzzers, utbot-gradle, utbot-instrumentation, utbot-instrumentation-tests, utbot-intellij, utbot-junit-contest, utbot-sample, utbot-summary, utbot-summary-tests]
     runs-on: ubuntu-20.04
     container: unittestbot/java-env:java11-zulu-jdk-gradle7.4.2-kotlinc1.7.0
     steps:
@@ -124,6 +129,7 @@ jobs:
       run: |
         git fetch
         git checkout ${{ github.event.inputs.commit_sha }}
+
     - uses: actions/checkout@v3
       with:
         ref: ${{ env.COMMIT_SHA }}
@@ -133,10 +139,12 @@ jobs:
         echo Find your Prometheus metrics using label {instance=\"${GITHUB_RUN_ID}-${HOSTNAME}\"}
         chmod +x ./scripts/monitoring.sh
         ./scripts/monitoring.sh ${{ secrets.PUSHGATEWAY_HOSTNAME }} ${{ secrets.PUSHGATEWAY_USER }} ${{ secrets.PUSHGATEWAY_PASSWORD }}
+
     - name: Run tests
       run: |
         cd ${{ matrix.project }}
         gradle build --no-daemon
+
     - name: Upload test report if tests have failed
       if: ${{ failure() }}
       uses: actions/upload-artifact@v3
