@@ -148,7 +148,7 @@ public class UtStream<E> implements Stream<E>, UtGenericStorage<E> {
     public Stream<E> filter(Predicate<? super E> predicate) {
         preconditionCheckWithClosingStream();
 
-        final FilterAction filterAction = new FilterAction((Predicate<Object>) predicate);
+        final FilterAction filterAction = new FilterAction(predicate);
         actions.insert(actions.end++, filterAction);
 
         return new UtStream<>(this);
@@ -410,12 +410,9 @@ public class UtStream<E> implements Stream<E>, UtGenericStorage<E> {
             throw new IllegalArgumentException();
         }
 
-        if (n == 0) {
-            // do nothing
-            return new UtStream<>(this);
-        }
+        assumeOrExecuteConcretely(n <= Integer.MAX_VALUE);
 
-        final SkipAction skipAction = new SkipAction(n);
+        final SkipAction skipAction = new SkipAction((int) n);
         actions.insert(actions.end++, skipAction);
 
         return new UtStream<>(this);
@@ -476,16 +473,18 @@ public class UtStream<E> implements Stream<E>, UtGenericStorage<E> {
     public <A> A[] toArray(IntFunction<A[]> generator) {
         preconditionCheckWithClosingStream();
 
+        final Object[] objects = origin.toArray();
+
+        final Object[] result = applyActions(objects);
+
         // TODO untracked ArrayStoreException - JIRA:1089
-        int size = origin.size();
-        A[] array = generator.apply(size);
+        A[] array = generator.apply(result.length);
+        int i = 0;
+        for (Object o : result) {
+            array[i++] = (A) o;
+        }
 
-        UtArrayMock.arraycopy(origin.toArray(), 0, array, 0, size);
-
-        final Object[] result = applyActions(array);
-        UtMock.disableClassCastExceptionCheck(result);
-
-        return (A[]) result;
+        return array;
     }
 
     @NotNull
