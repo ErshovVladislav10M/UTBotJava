@@ -22,6 +22,9 @@ import org.utbot.common.runIgnoringCancellationException
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.JsDialogWindow
 import org.utbot.intellij.plugin.ui.actions.JsActionMethods
+import org.utbot.intellij.plugin.ui.utils.isBuildWithGradle
+import org.utbot.intellij.plugin.ui.utils.showErrorDialogLater
+import org.utbot.intellij.plugin.ui.utils.suitableTestSourceRoots
 import org.utbot.intellij.plugin.ui.utils.testModules
 
 object JsDialogProcessor {
@@ -34,18 +37,18 @@ object JsDialogProcessor {
         containingFilePath: String,
         editor: Editor,
     ) {
-        val dialogProcessor =
-            createDialog(project, srcModule, fileMethods, focusedMethod, containingFilePath)
-        if (!dialogProcessor.showAndGet()) return
-        /*
-            Since Tern.js accesses containing file, sync with file system required before test generation.
-         */
-        runWriteAction {
-            with(FileDocumentManager.getInstance()) {
-                saveDocument(editor.document)
+        createDialog(project, srcModule, fileMethods, focusedMethod, containingFilePath)?.let { dialogProcessor ->
+            if (!dialogProcessor.showAndGet()) return
+            /*
+                Since Tern.js accesses containing file, sync with file system required before test generation.
+             */
+            runWriteAction {
+                with(FileDocumentManager.getInstance()) {
+                    saveDocument(editor.document)
+                }
             }
+            createTests(dialogProcessor.model, containingFilePath, editor)
         }
-        createTests(dialogProcessor.model, containingFilePath, editor)
     }
 
     private fun createDialog(
@@ -54,14 +57,24 @@ object JsDialogProcessor {
         fileMethods: Set<JSMemberInfo>,
         focusedMethod: JSMemberInfo?,
         filePath: String,
-    ): JsDialogWindow {
+    ): JsDialogWindow? {
         val testModules = srcModule.testModules(project)
+
+        if (project.isBuildWithGradle && testModules.flatMap { it.suitableTestSourceRoots() }.isEmpty()) {
+            val errorMessage = """
+                <html>No test source roots found in the project.<br>
+                Please, <a href="https://www.jetbrains.com/help/idea/testing.html#add-test-root">create or configure</a> at least one test source root.
+            """.trimIndent()
+            showErrorDialogLater(project, errorMessage, "Test source roots not found")
+            return null
+        }
 
         return JsDialogWindow(
             JsTestsModel(
                 project,
                 srcModule,
                 testModules,
+                emptySet(),
                 3L,
                 fileMethods,
                 if (focusedMethod != null) setOf(focusedMethod) else emptySet(),
@@ -145,7 +158,7 @@ object JsDialogProcessor {
                         regex.find(fileText)?.groups?.get(1)?.value?.let {
                             val exportsRegex = Regex("\\{(.*)}")
                             val existingExportsLine = exportsRegex.find(it)!!.groupValues[1]
-                            val existingExportsSet = existingExportsLine.split(',').toMutableSet()
+                            val existingExportsSet = existingExportsLine.filterNot {c -> c == ' ' }.split(',').toMutableSet()
                             existingExportsSet.addAll(exports)
                             val resLine = existingExportsSet.joinToString()
                             val swappedText = fileText.replace(it, "module.exports = {$resLine}")
@@ -154,6 +167,9 @@ object JsDialogProcessor {
                                     CodeGenerationController.unblockDocument(project, this)
                                     setText(swappedText)
                                     CodeGenerationController.unblockDocument(project, this)
+                                }
+                                with(FileDocumentManager.getInstance()) {
+                                    saveDocument(editor.document)
                                 }
                             }
                         }
@@ -170,6 +186,9 @@ object JsDialogProcessor {
                                 CodeGenerationController.unblockDocument(project, this)
                                 setText(fileText + line)
                                 CodeGenerationController.unblockDocument(project, this)
+                            }
+                            with(FileDocumentManager.getInstance()) {
+                                saveDocument(editor.document)
                             }
                         }
                     }

@@ -2,35 +2,54 @@ package org.utbot.intellij.plugin.ui
 
 import com.intellij.lang.javascript.refactoring.ui.JSMemberSelectionTable
 import com.intellij.lang.javascript.refactoring.util.JSMemberInfo
+import com.intellij.openapi.application.runWriteAction
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.util.Computable
+import com.intellij.openapi.vfs.StandardFileSystems
+import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VfsUtil.createDirectoryIfMissing
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.FakeVirtualFile
+import com.intellij.psi.PsiManager
+import com.intellij.refactoring.PackageWrapper
+import com.intellij.refactoring.ui.PackageNameReferenceEditorCombo
+import com.intellij.refactoring.util.RefactoringUtil
 import com.intellij.ui.ContextHelpLabel
 import com.intellij.ui.JBIntSpinner
+import com.intellij.ui.components.CheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.Panel
 import com.intellij.ui.layout.Cell
 import com.intellij.ui.layout.panel
+import com.intellij.util.IncorrectOperationException
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.io.File
 import java.util.Locale
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
-import org.jetbrains.kotlin.idea.core.util.toVirtualFile
 import org.utbot.framework.codegen.Mocha
 import org.utbot.framework.codegen.TestFramework
 import org.utbot.framework.plugin.api.CodeGenerationSettingItem
+import org.utbot.framework.plugin.api.CodegenLanguage
 import org.utbot.intellij.plugin.models.JsTestsModel
+import org.utbot.intellij.plugin.models.packageName
 import org.utbot.intellij.plugin.ui.components.TestFolderComboWithBrowseButton
+import org.utbot.intellij.plugin.ui.utils.addSourceRootIfAbsent
+import org.utbot.intellij.plugin.ui.utils.testRootType
 import utils.JsCmdExec
+import javax.swing.JComboBox
 import kotlin.concurrent.thread
 
-private const val MINIMUM_TIMEOUT_VALUE_IN_SECONDS = 3
+private const val RECENTS_KEY = "org.utbot.recents"
+private const val SAME_PACKAGE_LABEL = "same as for sources"
+private const val MINIMUM_TIMEOUT_VALUE_IN_SECONDS = 1
 
 class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
@@ -40,6 +59,22 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         val height = this.rowHeight * (items.size.coerceAtMost(12) + 1)
         this.preferredScrollableViewportSize = JBUI.size(-1, height)
     }
+
+    private fun findTestPackageComboValue(): String {
+        return if (!model.isMultiPackage) {
+            model.srcClasses.first().packageName
+        } else {
+            SAME_PACKAGE_LABEL
+        }
+    }
+
+    private val cbSpecifyTestPackage = CheckBox("Specify destination package", false)
+    private val testPackageField = PackageNameReferenceEditorCombo(
+        findTestPackageComboValue(),
+        model.project,
+        RECENTS_KEY,
+        "Choose destination package"
+    )
 
     private val testSourceFolderField = TestFolderComboWithBrowseButton(model)
     private val testFrameworks: ComboBox<TestFramework> = ComboBox(DefaultComboBoxModel(arrayOf(Mocha)))
@@ -57,12 +92,6 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         )
 
     init {
-        if (model.testSourceRoot is FakeVirtualFile || model.testSourceRoot == null) {
-            val file = File(model.project.basePath + "/utbot_tests/")
-
-            file.mkdir()
-            model.testSourceRoot = file.toVirtualFile()!!
-        }
         title = "Generate tests with UtBot"
         initTestFrameworkPresenceThread = thread(start = true) {
             TestFramework.allJsItems.forEach {
@@ -94,12 +123,19 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
                     component(JBLabel("sec"))
                 }
             }
+            row {
+                component(cbSpecifyTestPackage)
+            }.apply { visible = false }
+            row("Destination package:") {
+                component(testPackageField)
+            }.apply { visible = false }
             row("Generate test methods for:") {}
             row {
                 scrollPane(functionsTable)
             }
         }
         updateMembersTable()
+        setListeners()
         return panel
     }
 
@@ -112,12 +148,24 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
 
 
     override fun doOKAction() {
+        model.testPackageName =
+            if (testPackageField.text != SAME_PACKAGE_LABEL) testPackageField.text else ""
         val selected = functionsTable.selectedMemberInfos.toSet()
         model.selectedMethods = if (selected.any()) selected else emptySet()
         model.testFramework = testFrameworks.item
         model.timeout = timeoutSpinner.number.toLong()
 
         configureTestFrameworkIfRequired()
+        try {
+            val testRootPrepared = createTestRootAndPackages()
+            if (!testRootPrepared) {
+                showTestRootAbsenceErrorMessage()
+                return
+            }
+        } catch (e: IncorrectOperationException) {
+            println(e.message)
+
+        }
         super.doOKAction()
     }
 
@@ -133,6 +181,12 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
             checkMembers(selectedMethods)
         }
     }
+    private fun showTestRootAbsenceErrorMessage() =
+        Messages.showErrorDialog(
+            "Test source root is not configured or is located out of content entry!",
+            "Generation error"
+        )
+
 
     private fun configureTestFramework() {
         val selectedTestFramework = testFrameworks.item
@@ -182,6 +236,88 @@ class JsDialogWindow(val model: JsTestsModel) : DialogWrapper(model.project) {
         }
         return checkForPackageText.contains(npmPackageName)
     }
+    private fun setListeners() {
+
+        testSourceFolderField.childComponent.addActionListener { event ->
+            with((event.source as JComboBox<*>).selectedItem) {
+                if (this is VirtualFile) {
+                    model.setSourceRootAndFindTestModule(this@with)
+                } else {
+                    model.setSourceRootAndFindTestModule(null)
+                }
+            }
+        }
+    }
+
+    private fun getOrCreateTestRoot(testSourceRoot: VirtualFile): Boolean {
+        val modifiableModel = ModuleRootManager.getInstance(model.testModule).modifiableModel
+        try {
+            val contentEntry = modifiableModel.contentEntries
+                .filterNot { it.file == null }
+                .firstOrNull { VfsUtil.isAncestor(it.file!!, testSourceRoot, false) }
+                ?: return false
+
+            contentEntry.addSourceRootIfAbsent(
+                modifiableModel,
+                testSourceRoot.url,
+                CodegenLanguage.JS.testRootType()
+            )
+            return true
+        } finally {
+            if (modifiableModel.isWritable && !modifiableModel.isDisposed) modifiableModel.dispose()
+        }
+    }
+
+    private fun createTestRootAndPackages(): Boolean {
+        model.setSourceRootAndFindTestModule(createDirectoryIfMissing(model.testSourceRoot))
+        val testSourceRoot = model.testSourceRoot ?: return false
+
+        if (model.testSourceRoot?.isDirectory != true) return false
+        if (getOrCreateTestRoot(testSourceRoot)) {
+            if (cbSpecifyTestPackage.isSelected) {
+                createSelectedPackage(testSourceRoot)
+            } else {
+                createPackagesByClasses(testSourceRoot)
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun createPackageWrapper(packageName: String?): PackageWrapper =
+        PackageWrapper(PsiManager.getInstance(model.project), trimPackageName(packageName))
+
+    private fun trimPackageName(name: String?): String = name?.trim() ?: ""
+
+    private fun createPackagesByClasses(testSourceRoot: VirtualFile) {
+        val packageNames = model.srcClasses.map { it.packageName }.sortedBy { it.length }
+        for (packageName in packageNames) {
+            runWriteAction {
+                RefactoringUtil.createPackageDirectoryInSourceRoot(createPackageWrapper(packageName), testSourceRoot)
+            }
+        }
+    }
+
+    private fun createSelectedPackage(testSourceRoot: VirtualFile) =
+        runWriteAction {
+            RefactoringUtil.createPackageDirectoryInSourceRoot(createPackageWrapper(testPackageField.text), testSourceRoot)
+        }
+
+    private fun createDirectoryIfMissing(dir : VirtualFile?): VirtualFile? {
+        val file = if (dir is FakeVirtualFile) {
+            WriteCommandAction.runWriteCommandAction(model.project, Computable<VirtualFile> {
+                createDirectoryIfMissing(dir.path)
+            })
+        } else {
+            dir
+        }?: return null
+        return if (VfsUtil.virtualToIoFile(file).isFile) {
+            null
+        } else {
+            StandardFileSystems.local().findFileByPath(file.path)
+        }
+    }
+
 
     private fun checkMembers(members: Collection<JSMemberInfo>) = members.forEach { it.isChecked = true }
 }

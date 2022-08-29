@@ -1,10 +1,8 @@
 package org.utbot.intellij.plugin.models
 
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdkVersion
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiClass
 import com.intellij.refactoring.util.classMembers.MemberInfo
 import org.jetbrains.kotlin.idea.core.getPackage
@@ -21,7 +19,7 @@ class GenerateTestsModel(
     override val project: Project,
     override val srcModule: Module,
     potentialTestModules: List<Module>,
-    var srcClasses: Set<PsiClass>,
+    override var srcClasses: Set<PsiClass>,
     var selectedMethods: Set<MemberInfo>?,
     override var timeout: Long,
     var generateWarningsForStaticMocking: Boolean = false,
@@ -30,10 +28,10 @@ class GenerateTestsModel(
     project,
     srcModule,
     potentialTestModules,
+    srcClasses,
     timeout,
 ) {
 
-    var testPackageName: String? = null
     lateinit var testFramework: TestFramework
     lateinit var mockStrategy: MockStrategyApi
     var mockFramework: MockFramework? = null
@@ -47,9 +45,7 @@ class GenerateTestsModel(
 
     val conflictTriggers: ConflictTriggers = ConflictTriggers()
 
-    val isMultiPackage: Boolean by lazy {
-        srcClasses.map { it.packageName }.distinct().size != 1
-    }
+
     var runGeneratedTestsWithCoverage : Boolean = false
 
     val jdkVersion: JavaSdkVersion?

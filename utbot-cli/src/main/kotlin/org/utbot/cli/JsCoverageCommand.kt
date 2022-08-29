@@ -37,7 +37,7 @@ class JsCoverageCommand : CliktCommand(name = "coverage_js", help = "Get tests c
         val workingDir = testFile.substringBeforeLast(File.separator)
         val coverageDataPath = "$workingDir${File.separator}coverage${File.separator}"
         JsCmdExec.runCommand(
-            "npm i -l nyc",
+            "npm i -D nyc",
             workingDir,
             true,
             20
