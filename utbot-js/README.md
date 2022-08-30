@@ -14,12 +14,12 @@ It is assumed that you have already read the [UTBot Java Readme](https://github.
 
 ## Installation
 
-First of all, open the [newest action](https://github.com/UnitTestBot/UTBotJava/actions/workflows/publish-plugin-and-cli-from-branch.yml?query=branch%3Arudolf101%2Futbot-js-support+is%3Asuccess++)  and move on to the next step:
+Open the [newest action](https://github.com/UnitTestBot/UTBotJava/actions/workflows/publish-plugin-and-cli-from-branch.yml?query=branch%3Arudolf101%2Futbot-js-support+is%3Asuccess++)  and move on to the next step:
 
 <details>
   <summary>Install UTBot plugin for IntelliJ IDEA</summary>
 
-1. Download `utbot-intellij` plugin from the above link
+1. Download `utbot-intellij` plugin from the above link.
 2. Open your IntelliJ IDEA `v2022.1`. If you don't have one, get it from [JetBrains](https://www.jetbrains.com/idea/download/#section=windows).
 3. Install plugin following this [instruction](https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk).
 
@@ -31,8 +31,8 @@ ____________
 <details>
   <summary>Install UTBot Command Line Interface</summary>
 
-1. Download `utbot-cli` from the above link and unzip it
-2. Follow instruction from [CLI documentation](https://github.com/UnitTestBot/UTBotJava/blob/rudolf101/utbot-js-support/utbot-js/docs/CLI.md)
+1. Download `utbot-cli` from the above link and unzip it.
+2. Follow instruction from [CLI documentation](https://github.com/UnitTestBot/UTBotJava/blob/rudolf101/utbot-js-support/utbot-js/docs/CLI.md).
 
 Now you can use UTBot with CLI.
 
@@ -78,5 +78,5 @@ Having troubles with using UTBot? Contact us [directly](https://www.utbot.org/co
 
 Here are some related projects
 
-[UTBotJava](https://github.com/UnitTestBot/UTBotJava)<br>[UTBotCpp](https://github.com/UnitTestBot/UTBotCpp)
+[UTBotCpp](https://github.com/UnitTestBot/UTBotCpp)
 
