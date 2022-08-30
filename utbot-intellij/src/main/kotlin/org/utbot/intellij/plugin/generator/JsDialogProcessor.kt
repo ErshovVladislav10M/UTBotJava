@@ -22,9 +22,7 @@ import org.utbot.common.runIgnoringCancellationException
 import org.utbot.intellij.plugin.models.JsTestsModel
 import org.utbot.intellij.plugin.ui.JsDialogWindow
 import org.utbot.intellij.plugin.ui.actions.JsActionMethods
-import org.utbot.intellij.plugin.ui.utils.isBuildWithGradle
 import org.utbot.intellij.plugin.ui.utils.showErrorDialogLater
-import org.utbot.intellij.plugin.ui.utils.suitableTestSourceRoots
 import org.utbot.intellij.plugin.ui.utils.testModules
 
 object JsDialogProcessor {
@@ -60,7 +58,7 @@ object JsDialogProcessor {
     ): JsDialogWindow? {
         val testModules = srcModule.testModules(project)
 
-        if (project.isBuildWithGradle && testModules.flatMap { it.suitableTestSourceRoots() }.isEmpty()) {
+        if (testModules.isEmpty()) {
             val errorMessage = """
                 <html>No test source roots found in the project.<br>
                 Please, <a href="https://www.jetbrains.com/help/idea/testing.html#add-test-root">create or configure</a> at least one test source root.
