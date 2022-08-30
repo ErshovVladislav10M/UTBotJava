@@ -20,9 +20,15 @@ import org.jetbrains.kotlin.idea.core.getPackage
 import org.jetbrains.kotlin.idea.core.util.toPsiDirectory
 import org.jetbrains.kotlin.idea.core.util.toPsiFile
 import org.jetbrains.kotlin.psi.KtClass
+import org.utbot.intellij.plugin.csharp.CSharpActionMethods
 import java.util.*
 
 class GenerateTestsAction : AnAction() {
+    private fun getLanguage(e: AnActionEvent): String {
+        val ans = e.getData(CommonDataKeys.PSI_FILE)?.language?.id ?: ""
+        return e.getData(CommonDataKeys.PSI_FILE)?.language?.id ?: ""
+    }
+
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val (srcClasses, focusedMethod) = getPsiTargets(e) ?: return
@@ -30,6 +36,10 @@ class GenerateTestsAction : AnAction() {
     }
 
     override fun update(e: AnActionEvent) {
+        if (getLanguage(e) == CSharpActionMethods.csharpID) {
+            //CSharpActionMethods.update(e)
+            return
+        }
         e.presentation.isEnabled = getPsiTargets(e) != null
     }
 
