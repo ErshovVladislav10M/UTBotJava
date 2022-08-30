@@ -20,7 +20,7 @@ import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import org.jetbrains.plugins.groovy.lang.psi.util.childrenOfType
+//import org.jetbrains.plugins.groovy.lang.psi.util.childrenOfType
 import com.intellij.testFramework.MapDataContext
 import mu.KotlinLogging
 import org.utbot.intellij.plugin.models.GenerateTestsModel
@@ -48,7 +48,7 @@ class RunConfigurationHelper {
         fun runTestsWithCoverage(
             model: GenerateTestsModel,
             testFiles: MutableList<PsiFile>,
-        ) {
+        ) {/*
             PsiDocumentManager.getInstance(model.project).commitAndRunReadAction() {
                 val testClasses = testFiles.map { file: PsiFile -> file.childrenOfType<PsiClass>().firstOrNull() }.filterNotNull()
                 if (testClasses.isNotEmpty()) {
@@ -96,7 +96,7 @@ class RunConfigurationHelper {
                     }
                 }
             }
-        }
+        */}
 
     }
 }

@@ -42,15 +42,22 @@ dependencies {
     testApi(project(":utbot-framework"))
 }
 
-// See https://github.com/JetBrains/gradle-intellij-plugin/
 intellij {
-    version = "2021.2"
-    type = "IC"
-    plugins = ['java',
+    //version = "2021.2"
+    //version = "2022.1"
+    version = "2022.1.2"
+    //type = "IC"
+    type = "RD"
+    plugins = [//'java',
+               //"org.jetbrains.kotlin",
+               //'org.jetbrains.android'
                // TODO: SAT-1539 - specify version of android plugin to be supported by our kotlin version.
                //https://mvnrepository.com/artifact/org.jetbrains.kotlin/gradle-idea
-               "org.jetbrains.kotlin",
-               'org.jetbrains.android']
+
+               "org.jetbrains.kotlin:221-1.7.10-release-333-IJ5591.52",
+               "com.jetbrains.rider.android:221.5787.36",
+               'rider-plugins-appender'
+    ]
 
     patchPluginXml {
         version = project.version

@@ -1,7 +1,7 @@
 package org.utbot.intellij.plugin.util
 
 import com.android.tools.idea.IdeInfo
-import com.android.tools.idea.gradle.util.GradleProjectSettingsFinder
+//import com.android.tools.idea.gradle.util.GradleProjectSettingsFinder
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.application.runWriteAction
@@ -40,7 +40,8 @@ object IntelliJApiHelper {
         isAndroidPluginAvailable && IdeInfo.getInstance().isAndroidStudio
 
     fun androidGradleSDK(project: Project): String? {
-        return if (isAndroidPluginAvailable) GradleProjectSettingsFinder.getInstance().findGradleProjectSettings(project)?.gradleJvm
-                else null
+        //return if (isAndroidPluginAvailable) GradleProjectSettingsFinder.getInstance().findGradleProjectSettings(project)?.gradleJvm
+        //        else null
+        return null
     }
 }
