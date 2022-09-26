@@ -25,11 +25,15 @@ import java.util.*
 
 class GenerateTestsAction : AnAction() {
     private fun getLanguage(e: AnActionEvent): String {
-        val ans = e.getData(CommonDataKeys.PSI_FILE)?.language?.id ?: ""
         return e.getData(CommonDataKeys.PSI_FILE)?.language?.id ?: ""
     }
 
     override fun actionPerformed(e: AnActionEvent) {
+        if (getLanguage(e) == CSharpActionMethods.csharpID) {
+            //CSharpActionMethods.actionPerformed(e)
+            return
+        }
+
         val project = e.project ?: return
         val (srcClasses, focusedMethod) = getPsiTargets(e) ?: return
         UtTestsDialogProcessor.createDialogAndGenerateTests(project, srcClasses, focusedMethod)
@@ -40,6 +44,7 @@ class GenerateTestsAction : AnAction() {
             //CSharpActionMethods.update(e)
             return
         }
+
         e.presentation.isEnabled = getPsiTargets(e) != null
     }
 

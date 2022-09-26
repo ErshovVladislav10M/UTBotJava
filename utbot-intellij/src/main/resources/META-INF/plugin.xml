@@ -7,9 +7,11 @@
     <idea-version since-build="202.8194.7"/>
     <version>2022.7-beta</version>
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
 
     <depends>com.intellij.modules.rider</depends>
     <depends>com.jetbrains.rider.android</depends>
+    <depends>com.jetbrains.resharper</depends>
 
     <actions>
         <action id="org.utbot.intellij.plugin.ui.actions.GenerateTestsAction"

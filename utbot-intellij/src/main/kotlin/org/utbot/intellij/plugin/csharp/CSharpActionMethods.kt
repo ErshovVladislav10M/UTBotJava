@@ -1,14 +1,17 @@
 package org.utbot.intellij.plugin.csharp
 
-object CSharpActionMethods {
-    const val csharpID = "CSharp"
+import com.jetbrains.python.psi.*
+import com.jetbrains.resharper.psi.csharp.*
 
-    /*data class Targets(
-        val functions: Set<PyFunction>,
+object CSharpActionMethods {
+    const val csharpID = "C#"
+
+    data class Targets(
+        val functions: Set<CSharpFunction>,
         val containingClass: PyClass?,
         val focusedFunction: PyFunction?,
         val file: PyFile
-    )
+    )/*
 
     fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
